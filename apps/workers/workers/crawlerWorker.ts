@@ -63,6 +63,9 @@ import {
 import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
 
 import metascraperReddit from "../metascraper-plugins/metascraper-reddit";
+import metascraperX from "../metascraper-plugins/metascraper-x";
+import { ApifyService } from "@karakeep/shared/services/apifyService";
+import { isXComUrl } from "@karakeep/shared/utils/xcom";
 
 const metascraperParser = metascraper([
   metascraperDate({
@@ -71,6 +74,7 @@ const metascraperParser = metascraper([
   }),
   metascraperAmazon(),
   metascraperReddit(),
+  metascraperX(), // Enhanced X.com support
   metascraperAuthor(),
   metascraperPublisher(),
   metascraperTitle(),
@@ -374,6 +378,7 @@ async function extractMetadata(
   htmlContent: string,
   url: string,
   jobId: string,
+  apifyData?: any, // Optional Apify data for enhanced extraction
 ) {
   logger.info(
     `[Crawler][${jobId}] Will attempt to extract metadata from page ...`,
@@ -384,6 +389,7 @@ async function extractMetadata(
     // We don't want to validate the URL again as we've already done it by visiting the page.
     // This was added because URL validation fails if the URL ends with a question mark (e.g. empty query params).
     validateUrl: false,
+    ...(apifyData && { apifyData }), // Pass Apify data if available
   });
   logger.info(`[Crawler][${jobId}] Done extracting metadata from the page.`);
   return meta;
@@ -795,6 +801,159 @@ async function crawlAndParseUrl(
   };
 }
 
+/**
+ * Enhanced X.com crawling using Apify
+ */
+async function crawlXComWithApify(
+  url: string,
+  userId: string,
+  jobId: string,
+  bookmarkId: string,
+  abortSignal: AbortSignal,
+) {
+  if (!ApifyService.isEnabled()) {
+    logger.warn(
+      `[Crawler][${jobId}] Apify is not enabled, falling back to regular crawling`,
+    );
+    return null;
+  }
+
+  try {
+    logger.info(
+      `[Crawler][${jobId}] Using Apify to scrape X.com URL: ${url}`,
+    );
+
+    const apifyService = new ApifyService();
+    const apifyResult = await apifyService.scrapeXUrl(url);
+
+    if (!apifyResult) {
+      logger.warn(
+        `[Crawler][${jobId}] Apify returned no results for URL: ${url}`,
+      );
+      return null;
+    }
+
+    logger.info(
+      `[Crawler][${jobId}] Successfully scraped X.com content via Apify`,
+    );
+
+    return apifyResult;
+  } catch (error) {
+    logger.error(
+      `[Crawler][${jobId}] Failed to scrape X.com URL with Apify: ${error}`,
+    );
+    // Return null to allow fallback to regular crawling
+    return null;
+  }
+}
+
+/**
+ * Process Apify results and update bookmark
+ */
+async function processApifyResult(
+  apifyData: any,
+  url: string,
+  userId: string,
+  jobId: string,
+  bookmarkId: string,
+  abortSignal: AbortSignal,
+) {
+  logger.info(
+    `[Crawler][${jobId}] Processing Apify results for bookmark ${bookmarkId}`,
+  );
+
+  try {
+    // Create a minimal HTML structure for compatibility
+    const htmlContent = apifyData.htmlContent || `
+      <html>
+        <head>
+          <title>${apifyData.title || 'X Post'}</title>
+          <meta property="og:title" content="${apifyData.title || ''}" />
+          <meta property="og:description" content="${apifyData.content || ''}" />
+          <meta property="og:image" content="${apifyData.authorProfilePic || ''}" />
+          <meta name="author" content="${apifyData.author || ''}" />
+        </head>
+        <body>
+          <div class="x-post">
+            ${apifyData.content || ''}
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Extract metadata using the enhanced metascraper with Apify data
+    const meta = await extractMetadata(htmlContent, url, jobId, apifyData);
+    
+    // Use Apify content for readable text
+    const readableContent = apifyData.content || '';
+
+    // Handle media if present
+    let imageAssetInfo: DBAssetType | null = null;
+    if (apifyData.media && apifyData.media.length > 0) {
+      // Use first image as the main image
+      const firstImage = apifyData.media.find((m: any) => m.type === 'image');
+      if (firstImage) {
+        try {
+          const downloaded = await downloadAndStoreImage(
+            firstImage.url,
+            userId,
+            jobId,
+            abortSignal,
+          );
+          if (downloaded) {
+            imageAssetInfo = {
+              id: downloaded.assetId,
+              bookmarkId,
+              userId,
+              assetType: AssetTypes.LINK_BANNER_IMAGE,
+              contentType: downloaded.contentType,
+              size: downloaded.size,
+            };
+          }
+        } catch (error) {
+          logger.warn(
+            `[Crawler][${jobId}] Failed to download image from Apify result: ${error}`,
+          );
+        }
+      }
+    }
+
+    // Update the bookmark with extracted data in a transaction
+    await db.transaction(async (txn) => {
+      await txn
+        .update(bookmarkLinks)
+        .set({
+          title: meta.title || apifyData.title,
+          description: meta.description || apifyData.content,
+          imageUrl: imageAssetInfo ? null : (apifyData.authorProfilePic || null), // Use profile pic if no downloaded image
+          content: readableContent,
+          htmlContent: htmlContent,
+          crawledAt: new Date(),
+          author: meta.author || apifyData.author,
+          publisher: meta.publisher || "X (formerly Twitter)",
+          datePublished: apifyData.publishedAt || undefined,
+        })
+        .where(eq(bookmarkLinks.id, bookmarkId));
+
+      // Update asset associations if we downloaded an image
+      if (imageAssetInfo) {
+        await updateAsset(undefined, imageAssetInfo, txn);
+      }
+    });
+
+    logger.info(
+      `[Crawler][${jobId}] Successfully processed Apify results for bookmark ${bookmarkId}`,
+    );
+
+    return true;
+  } catch (error) {
+    logger.error(
+      `[Crawler][${jobId}] Failed to process Apify results: ${error}`,
+    );
+    throw error;
+  }
+}
+
 async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
   const jobId = job.id ?? "unknown";
 
@@ -849,6 +1008,74 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
       job.abortSignal,
     );
   } else {
+    // Check if URL is X.com and enhanced scraping is enabled
+    if (isXComUrl(url) && ApifyService.isEnabled()) {
+      try {
+        const apifyResult = await crawlXComWithApify(
+          url,
+          userId,
+          jobId,
+          bookmarkId,
+          job.abortSignal,
+        );
+        
+        if (apifyResult) {
+          // Use Apify result instead of regular crawling
+          await processApifyResult(
+            apifyResult,
+            url,
+            userId,
+            jobId,
+            bookmarkId,
+            job.abortSignal,
+          );
+          
+          // Skip the regular crawling and archival logic
+          const archivalLogic = async () => {
+            // No additional archival needed for Apify results
+            logger.info(`[Crawler][${jobId}] Skipping archival for Apify-processed X.com URL`);
+          };
+          
+          // Continue with post-processing
+          // Enqueue openai job (if not set, assume it's true for backward compatibility)
+          if (job.data.runInference !== false) {
+            await OpenAIQueue.enqueue({
+              bookmarkId,
+              type: "tag",
+            });
+            await OpenAIQueue.enqueue({
+              bookmarkId,
+              type: "summarize",
+            });
+          }
+
+          // Update the search index
+          await triggerSearchReindex(bookmarkId);
+
+          // Trigger a potential download of a video from the URL
+          await triggerVideoWorker(bookmarkId, url);
+
+          // Trigger a webhook
+          await triggerWebhook(bookmarkId, "crawled");
+
+          // Execute archival logic
+          await archivalLogic();
+          
+          return; // Exit early, we're done processing
+        }
+        // If Apify fails or returns null, fall through to regular crawling
+        logger.info(
+          `[Crawler][${jobId}] Apify processing failed for X.com URL, falling back to regular crawling`,
+        );
+      } catch (error) {
+        logger.error(
+          `[Crawler][${jobId}] Error during Apify processing, falling back to regular crawling: ${error}`,
+        );
+        // Fall through to regular crawling
+      }
+    }
+    
+    // Regular crawling (fallback or for non-X.com URLs)
     const archivalLogic = await crawlAndParseUrl(
       url,
       userId,

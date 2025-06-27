@@ -1090,6 +1090,9 @@ importers:
 
   packages/shared:
     dependencies:
+      apify-client:
+        specifier: ^2.9.15
+        version: 2.12.5
       glob:
         specifier: ^11.0.0
         version: 11.0.2
@@ -1373,6 +1376,12 @@ packages:
   '@apidevtools/json-schema-ref-parser@11.9.3':
     resolution: {integrity: sha512-60vepv88RwcJtSHrD6MjIL6Ta3SOYbgfnkHb+ppAVK+o9mXprRtulx7VlRl3lN3bbvysAfCS7WMVfhUYemB0IQ==}
     engines: {node: '>= 16'}
+
+  '@apify/consts@2.43.0':
+    resolution: {integrity: sha512-6bhzXeftGa+MrO0XwHLLBJyP9Vc2gZXsbk3d8rcDmiEMJwChA+Qw1WD6BWI9zVazPeXb2OrjzOwfe05f59RD4g==}
+
+  '@apify/log@2.5.20':
+    resolution: {integrity: sha512-iLdKvzE4jluHtJyb/USjO/ygyT2HcgJvX0EdFZpo8V3q8jwgWmjW/jkfnDUZdecyNo948yqFEwxcxA9upZ4hug==}
 
   '@asamuzakjp/css-color@3.2.0':
     resolution: {integrity: sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw==}
@@ -2150,6 +2159,10 @@ packages:
     resolution: {integrity: sha512-wf/lwQvWAA0goIghcb91dQYpkLBcyhOhQNqG/VgWhnKzgt+UOMvra7EX/2fv70arm5RW+PUHoQHHDa6/p77Eqg==}
     peerDependencies:
       commander: ~12.1.0
+
+  '@crawlee/types@3.13.9':
+    resolution: {integrity: sha512-HdLPIe1xzGgQWpsDtgS38ZPjXelnrPer6Mjq0akmtdoiPOCEbu/FFNSEoZpJex8fFJpEcT2Z+puwg7dl1CyDNg==}
+    engines: {node: '>=16.0.0'}
 
   '@crxjs/vite-plugin@2.0.0-beta.28':
     resolution: {integrity: sha512-JUoB1431PvruQqVpxvJ5j6qh0NNx5sXafAXo+VltORtJQrS6wprI5QK4k6PLKV+WacsFuPLveM2ydBCEopU49w==}
@@ -5463,6 +5476,9 @@ packages:
     resolution: {integrity: sha512-KMReFUr0B4t+D+OBkjR3KYqvocp2XaSzO55UcB6mgQMd3KbcE+mWTyvVV7D/zsdEbNnV6acZUutkiHQXvTr1Rw==}
     engines: {node: '>= 8'}
 
+  apify-client@2.12.5:
+    resolution: {integrity: sha512-4egnj+43kZwlzfGASR++a1/UabyfzN+boSjlgFaIwC1x5sWj6aIbbYirVNnOVAXypZwdlSoEwbyJCFXWEjn9yQ==}
+
   arg@5.0.2:
     resolution: {integrity: sha512-PYjyFOLKQ9y57JvQ6QLo8dAgNqswh8M1RMJYdQduT6xbWSgK36P/Z/v+p888pM69jMMfS8Xd8F6I1kQ/I9HUGg==}
 
@@ -5544,6 +5560,9 @@ packages:
   async-mutex@0.4.1:
     resolution: {integrity: sha512-WfoBo4E/TbCX1G95XTjbWTE3X2XLG0m1Xbv2cwOtuPdyH9CZvnaA5nCt1ucjaKEgW2A5IF71hxrRhr83Je5xjA==}
 
+  async-retry@1.3.3:
+    resolution: {integrity: sha512-wfr/jstw9xNi/0teMHrRW7dsz3Lt5ARhYNZ2ewpadnhaIp5mbALhOAP+EAdsC7t4Z6wqsDVv9+W6gm1Dk9mEyw==}
+
   async@3.2.2:
     resolution: {integrity: sha512-H0E+qZaDEfx/FY4t7iLRv1W2fFI6+pyCeTw1uN20AQPiwqwM6ojPxHxdLv4z8hi2DtnW9BOckSspLucW7pIE5g==}
 
@@ -5578,6 +5597,9 @@ packages:
   available-typed-arrays@1.0.7:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
+
+  axios@1.10.0:
+    resolution: {integrity: sha512-/1xYAC4MP/HEG+3duIhFr4ZQXR4sQXOIe+o6sdqzeykGLx6Upp/1p8MHqhINOvGeP7xyNHe7tsiJByc4SSVUxw==}
 
   babel-core@7.0.0-bridge.0:
     resolution: {integrity: sha512-poPX9mZH/5CSanm50Q+1toVci6pv5KSRv/5TWCwtzQS5XEwn40BcCrgIeMFWP9CKKIniKXNxoIOnOq4VVlGXhg==}
@@ -9207,6 +9229,10 @@ packages:
   lodash.debounce@4.0.8:
     resolution: {integrity: sha512-FT1yDzDYEoYWhnSGnpE/4Kj1fLZkDFyqRb7fNt6FdYOSxlUWAtp42Eh6Wb0rGIv/m9Bgo7x4GhQbm5Ys4SG5ow==}
 
+  lodash.isequal@4.5.0:
+    resolution: {integrity: sha512-pDo3lu8Jhfjqls6GkMgpahsF9kCyayhgykjyLMNFTKWrpVdAQtYyB4muAMWozBB4ig/dtWAmsMxLEI8wuz+DYQ==}
+    deprecated: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
+
   lodash.isplainobject@4.0.6:
     resolution: {integrity: sha512-oSXzaWypCMHkPC3NvBEaPHf0KsA5mvPrOPgQWDsbg8n7orZ290M0BmC/jgRZ4vcJ6DTAhjrsSYgdsW/F+MFOBA==}
 
@@ -10404,6 +10430,10 @@ packages:
     resolution: {integrity: sha512-eNwHudNbO1folBP3JsZ19v9azXWtQZjICdr3Q0TDPIaeBQ3mXLrh54wM+er0+hSp+dWKf+Z8KM58CYzEyIYxYg==}
     engines: {node: '>=6'}
 
+  ow@0.28.2:
+    resolution: {integrity: sha512-dD4UpyBh/9m4X2NVjA+73/ZPBRF+uF4zIMFvvQsabMiEK8x41L3rQ8EENOi35kyyoaJwNxEeJcP6Fj1H4U409Q==}
+    engines: {node: '>=12'}
+
   own-keys@1.0.1:
     resolution: {integrity: sha512-qFOyK5PjiWZd+QQIh+1jhdb9LpxTF0qs7Pm8o5QHYZ0M3vKqSqzsZaEB6oWlxZ+q2sJBMI/Ktgd2N5ZwQoRHfg==}
     engines: {node: '>= 0.4'}
@@ -11351,6 +11381,9 @@ packages:
   proxy-addr@2.0.7:
     resolution: {integrity: sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg==}
     engines: {node: '>= 0.10'}
+
+  proxy-from-env@1.1.0:
+    resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
 
   psl@1.15.0:
     resolution: {integrity: sha512-JZd3gMVBAVQkSs6HdNZo9Sdo0LNcQeMNP3CozBJb3JYC/QUYZTnKxP+f8oWRX4rHP5EurWxqAHTSwUCjlNKa1w==}
@@ -13406,6 +13439,10 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
+  vali-date@1.0.0:
+    resolution: {integrity: sha512-sgECfZthyaCKW10N0fm27cg8HYTFK5qMWgypqkXMQ4Wbl/zZKx7xZICgcoxIIE+WFAP/MBL2EFwC/YvLxw3Zeg==}
+    engines: {node: '>=0.10.0'}
+
   validate-npm-package-name@5.0.1:
     resolution: {integrity: sha512-OljLrQ9SQdOUqTaQxqL5dEfZWrXExyyWsozYlAWFawPVNuD83igl7uJD2RTkNMbniIYgt8l81eCJGIdQF7avLQ==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
@@ -14129,6 +14166,13 @@ snapshots:
       '@jsdevtools/ono': 7.1.3
       '@types/json-schema': 7.0.15
       js-yaml: 4.1.0
+
+  '@apify/consts@2.43.0': {}
+
+  '@apify/log@2.5.20':
+    dependencies:
+      '@apify/consts': 2.43.0
+      ansi-colors: 4.1.3
 
   '@asamuzakjp/css-color@3.2.0':
     dependencies:
@@ -15780,6 +15824,10 @@ snapshots:
   '@commander-js/extra-typings@12.1.0(commander@12.1.0)':
     dependencies:
       commander: 12.1.0
+
+  '@crawlee/types@3.13.9':
+    dependencies:
+      tslib: 2.8.1
 
   '@crxjs/vite-plugin@2.0.0-beta.28':
     dependencies:
@@ -20249,6 +20297,21 @@ snapshots:
       normalize-path: 3.0.0
       picomatch: 2.3.1
 
+  apify-client@2.12.5:
+    dependencies:
+      '@apify/consts': 2.43.0
+      '@apify/log': 2.5.20
+      '@crawlee/types': 3.13.9
+      agentkeepalive: 4.6.0
+      async-retry: 1.3.3
+      axios: 1.10.0
+      content-type: 1.0.5
+      ow: 0.28.2
+      tslib: 2.8.1
+      type-fest: 4.41.0
+    transitivePeerDependencies:
+      - debug
+
   arg@5.0.2: {}
 
   argparse@1.0.10:
@@ -20318,6 +20381,10 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  async-retry@1.3.3:
+    dependencies:
+      retry: 0.13.1
+
   async@3.2.2: {}
 
   async@3.2.4: {}
@@ -20345,6 +20412,14 @@ snapshots:
   available-typed-arrays@1.0.7:
     dependencies:
       possible-typed-array-names: 1.1.0
+
+  axios@1.10.0:
+    dependencies:
+      follow-redirects: 1.15.9
+      form-data: 4.0.3
+      proxy-from-env: 1.1.0
+    transitivePeerDependencies:
+      - debug
 
   babel-core@7.0.0-bridge.0(@babel/core@7.26.0):
     dependencies:
@@ -24581,6 +24656,8 @@ snapshots:
 
   lodash.debounce@4.0.8: {}
 
+  lodash.isequal@4.5.0: {}
+
   lodash.isplainobject@4.0.6: {}
 
   lodash.memoize@4.1.2: {}
@@ -26485,6 +26562,14 @@ snapshots:
       strip-ansi: 5.2.0
       wcwidth: 1.0.1
 
+  ow@0.28.2:
+    dependencies:
+      '@sindresorhus/is': 4.6.0
+      callsites: 3.1.0
+      dot-prop: 6.0.1
+      lodash.isequal: 4.5.0
+      vali-date: 1.0.0
+
   own-keys@1.0.1:
     dependencies:
       get-intrinsic: 1.3.0
@@ -27410,6 +27495,8 @@ snapshots:
     dependencies:
       forwarded: 0.2.0
       ipaddr.js: 1.9.1
+
+  proxy-from-env@1.1.0: {}
 
   psl@1.15.0:
     dependencies:
@@ -29950,6 +30037,8 @@ snapshots:
       diff: 5.2.0
       kleur: 4.1.5
       sade: 1.8.1
+
+  vali-date@1.0.0: {}
 
   validate-npm-package-name@5.0.1: {}
 

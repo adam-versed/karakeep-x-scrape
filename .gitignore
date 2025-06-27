@@ -60,3 +60,7 @@ data
 
 # VS-Code
 .vscode
+
+# docs
+scratchpad.md
+.claude
