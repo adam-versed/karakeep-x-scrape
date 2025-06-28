@@ -1,7 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, test, vi } from "vitest";
-import metascraperX from "./metascraper-x";
+
 import type { ProcessedXContent } from "@karakeep/shared/types/apify";
 import { isXComUrl } from "@karakeep/shared/utils/xcom";
+
+import metascraperX from "./metascraper-x";
 
 // Mock the X.com URL utility
 vi.mock("@karakeep/shared/utils/xcom", () => ({
@@ -21,21 +24,37 @@ vi.mock("@karakeep/shared/logger", () => ({
 describe("metascraper-x plugin", () => {
   const plugin = metascraperX();
 
+  // Helper function to safely call rule functions
+  const callRule = (ruleName: keyof typeof plugin, context: any) => {
+    const rule = plugin[ruleName];
+    if (typeof rule === "function") {
+      return rule(context);
+    }
+    if (
+      Array.isArray(rule) &&
+      rule.length > 0 &&
+      typeof rule[0] === "function"
+    ) {
+      return rule[0](context);
+    }
+    return undefined;
+  };
+
   // Mock DOM with jQuery-like interface
-  const createMockDom = (html: string = "") => {
+  const createMockDom = () => {
     const mockElement = {
       text: vi.fn(() => "Mock Title"),
       attr: vi.fn((attrName: string) => {
         const attrs: Record<string, string> = {
-          'content': 'Mock content',
-          'lang': 'en',
+          content: "Mock content",
+          lang: "en",
         };
         return attrs[attrName];
       }),
     };
 
-    return vi.fn((selector: string) => {
-      if (selector === 'title') {
+    const mockDom = vi.fn((selector: string) => {
+      if (selector === "title") {
         return { text: vi.fn(() => "X Post Title") };
       }
       if (selector === 'meta[property="og:description"]') {
@@ -59,11 +78,26 @@ describe("metascraper-x plugin", () => {
       if (selector === 'meta[property="article:published_time"]') {
         return { attr: vi.fn(() => "2023-12-01T10:00:00Z") };
       }
-      if (selector === 'html') {
+      if (selector === "html") {
         return { attr: vi.fn(() => "en") };
       }
       return mockElement;
     });
+
+    // Add minimal CheerioAPI properties to satisfy TypeScript
+    return Object.assign(mockDom, {
+      _root: {},
+      _options: {},
+      fn: {},
+      load: vi.fn(),
+      html: vi.fn(),
+      xml: vi.fn(),
+      text: vi.fn(),
+      parseHTML: vi.fn(),
+      root: vi.fn(),
+      contains: vi.fn(),
+      merge: vi.fn(),
+    }) as any;
   };
 
   describe("plugin configuration", () => {
@@ -79,9 +113,12 @@ describe("metascraper-x plugin", () => {
   describe("test function", () => {
     test("calls isXComUrl with correct URL", () => {
       vi.mocked(isXComUrl).mockReturnValue(true);
-      
-      const result = plugin.test!({ url: "https://x.com/user/status/123" });
-      
+
+      const result = plugin.test!({
+        url: "https://x.com/user/status/123",
+        htmlDom: createMockDom(),
+      });
+
       expect(isXComUrl).toHaveBeenCalledWith("https://x.com/user/status/123");
       expect(result).toBe(true);
     });
@@ -102,13 +139,13 @@ describe("metascraper-x plugin", () => {
         apifyData,
       };
 
-      const result = plugin.title!(context);
+      const result = callRule("title", context);
       expect(result).toBe("Elon Musk (@elonmusk)");
     });
 
     test("falls back to HTML title when Apify data unavailable", () => {
       const mockDom = vi.fn((selector) => {
-        if (selector === 'title') {
+        if (selector === "title") {
           return { text: vi.fn(() => "User Tweet Title") };
         }
         return { text: vi.fn(() => ""), attr: vi.fn(() => "") };
@@ -119,13 +156,13 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.title!(context);
+      const result = callRule("title", context);
       expect(result).toBe("User Tweet Title");
     });
 
     test("uses URL as last resort when HTML title contains X", () => {
       const mockDom = vi.fn((selector) => {
-        if (selector === 'title') {
+        if (selector === "title") {
           return { text: vi.fn(() => "X") };
         }
         return { text: vi.fn(() => ""), attr: vi.fn(() => "") };
@@ -136,7 +173,7 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.title!(context);
+      const result = callRule("title", context);
       expect(result).toBe("X Post - https://x.com/user/status/123");
     });
   });
@@ -156,7 +193,7 @@ describe("metascraper-x plugin", () => {
         apifyData,
       };
 
-      const result = plugin.description!(context);
+      const result = callRule("description", context);
       expect(result).toBe("This is the tweet content from Apify");
     });
 
@@ -173,7 +210,7 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.description!(context);
+      const result = callRule("description", context);
       expect(result).toBe("OG Description Content");
     });
 
@@ -193,7 +230,7 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.description!(context);
+      const result = callRule("description", context);
       expect(result).toBe("Twitter Description Content");
     });
 
@@ -216,7 +253,7 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.description!(context);
+      const result = callRule("description", context);
       expect(result).toBe("Meta Description Content");
     });
   });
@@ -236,14 +273,16 @@ describe("metascraper-x plugin", () => {
         apifyData,
       };
 
-      const result = plugin.author!(context);
+      const result = callRule("author", context);
       expect(result).toBe("John Doe");
     });
 
     test("extracts author from OG title when Apify data unavailable", () => {
       const mockDom = vi.fn((selector) => {
         if (selector === 'meta[property="og:title"]') {
-          return { attr: vi.fn(() => "Jane Smith on X: Check out this amazing tweet!") };
+          return {
+            attr: vi.fn(() => "Jane Smith on X: Check out this amazing tweet!"),
+          };
         }
         return { attr: vi.fn(() => "") };
       });
@@ -253,12 +292,12 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.author!(context);
+      const result = callRule("author", context);
       expect(result).toBe("Jane Smith");
     });
 
     test("returns undefined when author cannot be extracted", () => {
-      const mockDom = vi.fn((selector) => {
+      const mockDom = vi.fn(() => {
         return { attr: vi.fn(() => "") };
       });
 
@@ -267,7 +306,7 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.author!(context);
+      const result = callRule("author", context);
       expect(result).toBeUndefined();
     });
   });
@@ -298,7 +337,7 @@ describe("metascraper-x plugin", () => {
         apifyData,
       };
 
-      const result = plugin.image!(context);
+      const result = callRule("image", context);
       expect(result).toBe("https://example.com/tweet-image.jpg");
     });
 
@@ -317,7 +356,7 @@ describe("metascraper-x plugin", () => {
         apifyData,
       };
 
-      const result = plugin.image!(context);
+      const result = callRule("image", context);
       expect(result).toBe("https://example.com/profile.jpg");
     });
 
@@ -334,7 +373,7 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.image!(context);
+      const result = callRule("image", context);
       expect(result).toBe("https://example.com/og-fallback.jpg");
     });
 
@@ -344,7 +383,9 @@ describe("metascraper-x plugin", () => {
           return { attr: vi.fn(() => "") };
         }
         if (selector === 'meta[name="twitter:image"]') {
-          return { attr: vi.fn(() => "https://example.com/twitter-fallback.jpg") };
+          return {
+            attr: vi.fn(() => "https://example.com/twitter-fallback.jpg"),
+          };
         }
         return { attr: vi.fn(() => "") };
       });
@@ -354,7 +395,7 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.image!(context);
+      const result = callRule("image", context);
       expect(result).toBe("https://example.com/twitter-fallback.jpg");
     });
   });
@@ -376,7 +417,7 @@ describe("metascraper-x plugin", () => {
         apifyData,
       };
 
-      const result = plugin.date!(context);
+      const result = callRule("date", context);
       expect(result).toBe("2023-12-01T15:30:00.000Z");
     });
 
@@ -393,12 +434,12 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.date!(context);
+      const result = callRule("date", context);
       expect(result).toBe("2023-12-01T10:00:00Z");
     });
 
     test("returns undefined when date cannot be extracted", () => {
-      const mockDom = vi.fn((selector) => {
+      const mockDom = vi.fn(() => {
         return { attr: vi.fn(() => "") };
       });
 
@@ -407,7 +448,7 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.date!(context);
+      const result = callRule("date", context);
       expect(result).toBeUndefined();
     });
   });
@@ -419,7 +460,7 @@ describe("metascraper-x plugin", () => {
         htmlDom: createMockDom(),
       };
 
-      const result = plugin.publisher!(context);
+      const result = callRule("publisher", context);
       expect(result).toBe("X (formerly Twitter)");
     });
 
@@ -437,7 +478,7 @@ describe("metascraper-x plugin", () => {
         apifyData,
       };
 
-      const result = plugin.publisher!(context);
+      const result = callRule("publisher", context);
       expect(result).toBe("X (formerly Twitter)");
     });
   });
@@ -445,7 +486,7 @@ describe("metascraper-x plugin", () => {
   describe("language extraction", () => {
     test("extracts language from HTML lang attribute", () => {
       const mockDom = vi.fn((selector) => {
-        if (selector === 'html') {
+        if (selector === "html") {
           return { attr: vi.fn(() => "es") };
         }
         return { attr: vi.fn(() => "") };
@@ -456,12 +497,12 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.lang!(context);
+      const result = callRule("lang", context);
       expect(result).toBe("es");
     });
 
     test("defaults to English when lang attribute unavailable", () => {
-      const mockDom = vi.fn((selector) => {
+      const mockDom = vi.fn(() => {
         return { attr: vi.fn(() => "") };
       });
 
@@ -470,7 +511,7 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      const result = plugin.lang!(context);
+      const result = callRule("lang", context);
       expect(result).toBe("en");
     });
   });
@@ -490,7 +531,7 @@ describe("metascraper-x plugin", () => {
         apifyData,
       };
 
-      const result = plugin.authorUsername!(context);
+      const result = callRule("authorUsername", context);
       expect(result).toBe("testuser123");
     });
 
@@ -500,7 +541,7 @@ describe("metascraper-x plugin", () => {
         htmlDom: createMockDom(),
       };
 
-      const result = plugin.authorUsername!(context);
+      const result = callRule("authorUsername", context);
       expect(result).toBeUndefined();
     });
   });
@@ -537,26 +578,43 @@ describe("metascraper-x plugin", () => {
         apifyData,
       };
 
-      expect(plugin.title!(context)).toBe("Complete User (@completeuser)");
-      expect(plugin.description!(context)).toBe("This is a complete tweet with all data #testing @mention");
-      expect(plugin.author!(context)).toBe("Complete User");
-      expect(plugin.authorUsername!(context)).toBe("completeuser");
-      expect(plugin.image!(context)).toBe("https://example.com/complete-image.jpg");
-      expect(plugin.date!(context)).toBe("2023-12-01T12:00:00.000Z");
-      expect(plugin.publisher!(context)).toBe("X (formerly Twitter)");
+      expect(callRule("title", context)).toBe("Complete User (@completeuser)");
+      expect(callRule("description", context)).toBe(
+        "This is a complete tweet with all data #testing @mention",
+      );
+      expect(callRule("author", context)).toBe("Complete User");
+      expect(callRule("authorUsername", context)).toBe("completeuser");
+      expect(callRule("image", context)).toBe(
+        "https://example.com/complete-image.jpg",
+      );
+      expect(callRule("date", context)).toBe("2023-12-01T12:00:00.000Z");
+      expect(callRule("publisher", context)).toBe("X (formerly Twitter)");
     });
 
     test("handles fallback scenario with no Apify data", () => {
       const mockDom = vi.fn((selector) => {
-        const selectors: Record<string, any> = {
-          'title': { text: vi.fn(() => "Fallback Tweet Title") },
-          'meta[property="og:description"]': { attr: vi.fn(() => "Fallback description") },
-          'meta[property="og:title"]': { attr: vi.fn(() => "Fallback User on X: Tweet content") },
-          'meta[property="og:image"]': { attr: vi.fn(() => "https://example.com/fallback-image.jpg") },
-          'meta[property="article:published_time"]': { attr: vi.fn(() => "2023-12-01T08:00:00Z") },
-          'html': { attr: vi.fn(() => "en") },
+        const selectors: Record<string, unknown> = {
+          title: { text: vi.fn(() => "Fallback Tweet Title") },
+          'meta[property="og:description"]': {
+            attr: vi.fn(() => "Fallback description"),
+          },
+          'meta[property="og:title"]': {
+            attr: vi.fn(() => "Fallback User on X: Tweet content"),
+          },
+          'meta[property="og:image"]': {
+            attr: vi.fn(() => "https://example.com/fallback-image.jpg"),
+          },
+          'meta[property="article:published_time"]': {
+            attr: vi.fn(() => "2023-12-01T08:00:00Z"),
+          },
+          html: { attr: vi.fn(() => "en") },
         };
-        return selectors[selector] || { text: vi.fn(() => ""), attr: vi.fn(() => "") };
+        return (
+          selectors[selector] || {
+            text: vi.fn(() => ""),
+            attr: vi.fn(() => ""),
+          }
+        );
       });
 
       const context = {
@@ -564,14 +622,16 @@ describe("metascraper-x plugin", () => {
         htmlDom: mockDom,
       };
 
-      expect(plugin.title!(context)).toBe("Fallback Tweet Title");
-      expect(plugin.description!(context)).toBe("Fallback description");
-      expect(plugin.author!(context)).toBe("Fallback User");
-      expect(plugin.image!(context)).toBe("https://example.com/fallback-image.jpg");
-      expect(plugin.date!(context)).toBe("2023-12-01T08:00:00Z");
-      expect(plugin.publisher!(context)).toBe("X (formerly Twitter)");
-      expect(plugin.lang!(context)).toBe("en");
-      expect(plugin.authorUsername!(context)).toBeUndefined();
+      expect(callRule("title", context)).toBe("Fallback Tweet Title");
+      expect(callRule("description", context)).toBe("Fallback description");
+      expect(callRule("author", context)).toBe("Fallback User");
+      expect(callRule("image", context)).toBe(
+        "https://example.com/fallback-image.jpg",
+      );
+      expect(callRule("date", context)).toBe("2023-12-01T08:00:00Z");
+      expect(callRule("publisher", context)).toBe("X (formerly Twitter)");
+      expect(callRule("lang", context)).toBe("en");
+      expect(callRule("authorUsername", context)).toBeUndefined();
     });
   });
 });

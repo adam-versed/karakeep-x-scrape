@@ -30,6 +30,7 @@ import { withTimeout } from "utils";
 import { getBookmarkDetails, updateAsset } from "workerUtils";
 
 import type { ZCrawlLinkRequest } from "@karakeep/shared/queues";
+import type { ProcessedXContent } from "@karakeep/shared/types/apify";
 import { db } from "@karakeep/db";
 import {
   assets,
@@ -60,12 +61,12 @@ import {
   triggerWebhook,
   zCrawlLinkRequestSchema,
 } from "@karakeep/shared/queues";
+import { ApifyService } from "@karakeep/shared/services/apifyService";
 import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
+import { isXComUrl } from "@karakeep/shared/utils/xcom";
 
 import metascraperReddit from "../metascraper-plugins/metascraper-reddit";
 import metascraperX from "../metascraper-plugins/metascraper-x";
-import { ApifyService } from "@karakeep/shared/services/apifyService";
-import { isXComUrl } from "@karakeep/shared/utils/xcom";
 
 const metascraperParser = metascraper([
   metascraperDate({
@@ -378,7 +379,7 @@ async function extractMetadata(
   htmlContent: string,
   url: string,
   jobId: string,
-  apifyData?: any, // Optional Apify data for enhanced extraction
+  apifyData?: ProcessedXContent, // Optional Apify data for enhanced extraction
 ) {
   logger.info(
     `[Crawler][${jobId}] Will attempt to extract metadata from page ...`,
@@ -808,8 +809,8 @@ async function crawlXComWithApify(
   url: string,
   userId: string,
   jobId: string,
-  bookmarkId: string,
-  abortSignal: AbortSignal,
+  _bookmarkId: string,
+  _abortSignal: AbortSignal,
 ) {
   if (!ApifyService.isEnabled()) {
     logger.warn(
@@ -819,9 +820,7 @@ async function crawlXComWithApify(
   }
 
   try {
-    logger.info(
-      `[Crawler][${jobId}] Using Apify to scrape X.com URL: ${url}`,
-    );
+    logger.info(`[Crawler][${jobId}] Using Apify to scrape X.com URL: ${url}`);
 
     const apifyService = new ApifyService();
     const apifyResult = await apifyService.scrapeXUrl(url);
@@ -851,7 +850,7 @@ async function crawlXComWithApify(
  * Process Apify results and update bookmark
  */
 async function processApifyResult(
-  apifyData: any,
+  apifyData: ProcessedXContent,
   url: string,
   userId: string,
   jobId: string,
@@ -864,18 +863,20 @@ async function processApifyResult(
 
   try {
     // Create a minimal HTML structure for compatibility
-    const htmlContent = apifyData.htmlContent || `
+    const htmlContent =
+      apifyData.htmlContent ||
+      `
       <html>
         <head>
-          <title>${apifyData.title || 'X Post'}</title>
-          <meta property="og:title" content="${apifyData.title || ''}" />
-          <meta property="og:description" content="${apifyData.content || ''}" />
-          <meta property="og:image" content="${apifyData.authorProfilePic || ''}" />
-          <meta name="author" content="${apifyData.author || ''}" />
+          <title>${apifyData.title || "X Post"}</title>
+          <meta property="og:title" content="${apifyData.title || ""}" />
+          <meta property="og:description" content="${apifyData.content || ""}" />
+          <meta property="og:image" content="${apifyData.authorProfilePic || ""}" />
+          <meta name="author" content="${apifyData.author || ""}" />
         </head>
         <body>
           <div class="x-post">
-            ${apifyData.content || ''}
+            ${apifyData.content || ""}
           </div>
         </body>
       </html>
@@ -883,15 +884,16 @@ async function processApifyResult(
 
     // Extract metadata using the enhanced metascraper with Apify data
     const meta = await extractMetadata(htmlContent, url, jobId, apifyData);
-    
+
     // Use Apify content for readable text
-    const readableContent = apifyData.content || '';
+    const readableContent = apifyData.content || "";
 
     // Handle media if present
     let imageAssetInfo: DBAssetType | null = null;
     if (apifyData.media && apifyData.media.length > 0) {
       // Use first image as the main image
-      const firstImage = apifyData.media.find((m: any) => m.type === 'image');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const firstImage = apifyData.media.find((m: any) => m.type === "image");
       if (firstImage) {
         try {
           const downloaded = await downloadAndStoreImage(
@@ -925,7 +927,7 @@ async function processApifyResult(
         .set({
           title: meta.title || apifyData.title,
           description: meta.description || apifyData.content,
-          imageUrl: imageAssetInfo ? null : (apifyData.authorProfilePic || null), // Use profile pic if no downloaded image
+          imageUrl: imageAssetInfo ? null : apifyData.authorProfilePic || null, // Use profile pic if no downloaded image
           content: readableContent,
           htmlContent: htmlContent,
           crawledAt: new Date(),
@@ -1018,7 +1020,7 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
           bookmarkId,
           job.abortSignal,
         );
-        
+
         if (apifyResult) {
           // Use Apify result instead of regular crawling
           await processApifyResult(
@@ -1029,13 +1031,15 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
             bookmarkId,
             job.abortSignal,
           );
-          
+
           // Skip the regular crawling and archival logic
           const archivalLogic = async () => {
             // No additional archival needed for Apify results
-            logger.info(`[Crawler][${jobId}] Skipping archival for Apify-processed X.com URL`);
+            logger.info(
+              `[Crawler][${jobId}] Skipping archival for Apify-processed X.com URL`,
+            );
           };
-          
+
           // Continue with post-processing
           // Enqueue openai job (if not set, assume it's true for backward compatibility)
           if (job.data.runInference !== false) {
@@ -1060,7 +1064,7 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
 
           // Execute archival logic
           await archivalLogic();
-          
+
           return; // Exit early, we're done processing
         }
         // If Apify fails or returns null, fall through to regular crawling
@@ -1074,7 +1078,7 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
         // Fall through to regular crawling
       }
     }
-    
+
     // Regular crawling (fallback or for non-X.com URLs)
     const archivalLogic = await crawlAndParseUrl(
       url,
