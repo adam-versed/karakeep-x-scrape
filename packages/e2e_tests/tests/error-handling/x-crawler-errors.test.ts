@@ -1,18 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import type { ApifyClient } from "apify-client";
-import type { ApifyXResponse, ProcessedXContent } from "@karakeep/shared/types/apify";
+import type {
+  ApifyRunInfo,
+  ApifyXResponse,
+} from "@karakeep/shared/types/apify";
 
 import {
-  createMockApifyClient,
-  createMockApifyService,
+  advancedScenarios,
+  cleanupMocks,
   configureApifyMockScenario,
   configureApifyServiceMock,
+  createMockApifyService,
   setupTestScenario,
-  cleanupMocks,
   X_COM_TEST_FIXTURES,
-  testDataGenerators,
-  advancedScenarios,
 } from "../../mocks/x-com-mocks";
 
 /**
@@ -102,11 +102,11 @@ describe("X.com Crawler Error Handling", () => {
         });
 
         apifyMocks.call.mockRejectedValue(
-          new Error("Insufficient permissions to access actor")
+          new Error("Insufficient permissions to access actor"),
         );
 
         await expect(apifyMocks.call({})).rejects.toThrow(
-          "Insufficient permissions to access actor"
+          "Insufficient permissions to access actor",
         );
       });
 
@@ -120,11 +120,11 @@ describe("X.com Crawler Error Handling", () => {
         });
 
         apifyMocks.call.mockRejectedValue(
-          new Error("Actor has been deprecated and is no longer available")
+          new Error("Actor has been deprecated and is no longer available"),
         );
 
         await expect(apifyMocks.call({})).rejects.toThrow(
-          "Actor has been deprecated"
+          "Actor has been deprecated",
         );
       });
     });
@@ -159,15 +159,15 @@ describe("X.com Crawler Error Handling", () => {
 
       it("should gracefully fall back when feature is disabled mid-request", async () => {
         const apifyService = createMockApifyService();
-        
+
         // Initially enabled, then disabled
         apifyService.isEnabled.mockReturnValueOnce(true).mockReturnValue(false);
         apifyService.scrapeXUrl.mockRejectedValue(
-          new Error("Feature has been disabled")
+          new Error("Feature has been disabled"),
         );
 
         await expect(
-          apifyService.scrapeXUrl("https://x.com/test/status/123")
+          apifyService.scrapeXUrl("https://x.com/test/status/123"),
         ).rejects.toThrow("Feature has been disabled");
       });
     });
@@ -190,19 +190,17 @@ describe("X.com Crawler Error Handling", () => {
         });
 
         await expect(apifyMocks.call({})).rejects.toThrow(
-          "Service Temporarily Unavailable"
+          "Service Temporarily Unavailable",
         );
       });
 
       it("should handle DNS resolution failures", async () => {
         const { apifyMocks } = setupTestScenario({});
 
-        apifyMocks.call.mockRejectedValue(
-          new Error("ENOTFOUND api.apify.com")
-        );
+        apifyMocks.call.mockRejectedValue(new Error("ENOTFOUND api.apify.com"));
 
         await expect(apifyMocks.call({})).rejects.toThrow(
-          "ENOTFOUND api.apify.com"
+          "ENOTFOUND api.apify.com",
         );
       });
 
@@ -210,11 +208,11 @@ describe("X.com Crawler Error Handling", () => {
         const { apifyMocks } = setupTestScenario({});
 
         apifyMocks.call.mockRejectedValue(
-          new Error("unable to verify the first certificate")
+          new Error("unable to verify the first certificate"),
         );
 
         await expect(apifyMocks.call({})).rejects.toThrow(
-          "unable to verify the first certificate"
+          "unable to verify the first certificate",
         );
       });
     });
@@ -233,7 +231,9 @@ describe("X.com Crawler Error Handling", () => {
           delay: 100,
         });
 
-        await expect(apifyMocks.call({})).rejects.toThrow("Actor run timed out");
+        await expect(apifyMocks.call({})).rejects.toThrow(
+          "Actor run timed out",
+        );
       });
 
       it("should handle dataset fetch timeout", async () => {
@@ -254,13 +254,13 @@ describe("X.com Crawler Error Handling", () => {
         apifyMocks.listItems.mockImplementation(
           () =>
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("Dataset fetch timeout")), 50)
-            )
+              setTimeout(() => reject(new Error("Dataset fetch timeout")), 50),
+            ),
         );
 
-        await expect(
-          apifyMocks.listItems({})
-        ).rejects.toThrow("Dataset fetch timeout");
+        await expect(apifyMocks.listItems({})).rejects.toThrow(
+          "Dataset fetch timeout",
+        );
       });
 
       it("should handle progressive timeout with retries", async () => {
@@ -278,7 +278,11 @@ describe("X.com Crawler Error Handling", () => {
             status: "SUCCEEDED" as const,
             startedAt: new Date().toISOString(),
             finishedAt: new Date().toISOString(),
-            stats: { inputBodyLen: 1024, restartCount: 0, durationMillis: 1000 },
+            stats: {
+              inputBodyLen: 1024,
+              restartCount: 0,
+              durationMillis: 1000,
+            },
             defaultDatasetId: "dataset_success",
           };
         });
@@ -317,7 +321,7 @@ describe("X.com Crawler Error Handling", () => {
         };
 
         apifyMocks.call.mockResolvedValue(runInfo);
-        
+
         // Dataset returns partial data
         apifyMocks.listItems.mockResolvedValue({
           items: [
@@ -343,7 +347,7 @@ describe("X.com Crawler Error Handling", () => {
         });
 
         await expect(apifyMocks.listItems({})).rejects.toThrow(
-          "Stream interrupted"
+          "Stream interrupted",
         );
       });
 
@@ -351,11 +355,11 @@ describe("X.com Crawler Error Handling", () => {
         const { apifyMocks } = setupTestScenario({});
 
         apifyMocks.listItems.mockRejectedValue(
-          new Error("Unexpected token < in JSON at position 0")
+          new Error("Unexpected token < in JSON at position 0"),
         );
 
         await expect(apifyMocks.listItems({})).rejects.toThrow(
-          "Unexpected token < in JSON"
+          "Unexpected token < in JSON",
         );
       });
     });
@@ -365,7 +369,7 @@ describe("X.com Crawler Error Handling", () => {
         const { apifyMocks } = setupTestScenario({});
 
         apifyMocks.call.mockRejectedValue(
-          new Error("connect ECONNREFUSED 127.0.0.1:443")
+          new Error("connect ECONNREFUSED 127.0.0.1:443"),
         );
 
         await expect(apifyMocks.call({})).rejects.toThrow("ECONNREFUSED");
@@ -374,9 +378,7 @@ describe("X.com Crawler Error Handling", () => {
       it("should handle connection reset", async () => {
         const { apifyMocks } = setupTestScenario({});
 
-        apifyMocks.call.mockRejectedValue(
-          new Error("socket hang up")
-        );
+        apifyMocks.call.mockRejectedValue(new Error("socket hang up"));
 
         await expect(apifyMocks.call({})).rejects.toThrow("socket hang up");
       });
@@ -384,11 +386,11 @@ describe("X.com Crawler Error Handling", () => {
       it("should handle network unreachable", async () => {
         const { apifyMocks } = setupTestScenario({});
 
-        apifyMocks.call.mockRejectedValue(
-          new Error("Network is unreachable")
-        );
+        apifyMocks.call.mockRejectedValue(new Error("Network is unreachable"));
 
-        await expect(apifyMocks.call({})).rejects.toThrow("Network is unreachable");
+        await expect(apifyMocks.call({})).rejects.toThrow(
+          "Network is unreachable",
+        );
       });
     });
   });
@@ -410,8 +412,8 @@ describe("X.com Crawler Error Handling", () => {
 
         apifyMocks.call.mockResolvedValue(runInfo);
         apifyMocks.listItems.mockResolvedValue({
-          items: null as any,
-        });
+          items: null,
+        } as { items: unknown });
 
         const response = await apifyMocks.listItems({});
         expect(response.items).toBeNull();
@@ -421,8 +423,8 @@ describe("X.com Crawler Error Handling", () => {
         const { apifyMocks } = setupTestScenario({});
 
         apifyMocks.listItems.mockResolvedValue({
-          items: undefined as any,
-        });
+          items: undefined,
+        } as { items: unknown });
 
         const response = await apifyMocks.listItems({});
         expect(response.items).toBeUndefined();
@@ -432,8 +434,8 @@ describe("X.com Crawler Error Handling", () => {
         const { apifyMocks } = setupTestScenario({});
 
         apifyMocks.listItems.mockResolvedValue({
-          items: "not an array" as any,
-        });
+          items: "not an array",
+        } as { items: unknown });
 
         const response = await apifyMocks.listItems({});
         expect(typeof response.items).toBe("string");
@@ -442,24 +444,24 @@ describe("X.com Crawler Error Handling", () => {
       it("should handle deeply nested malformed data", async () => {
         const malformedResponse = {
           id: "123",
-          text: null as any,
+          text: null as unknown as string,
           author: {
-            userName: undefined as any,
-            followers: "not a number" as any,
-            verified: "yes" as any, // should be boolean
+            userName: undefined as unknown as string,
+            followers: "not a number" as unknown as number,
+            verified: "yes" as unknown as boolean, // should be boolean
           },
           media: [
             null,
             { url: undefined },
             "not an object",
             { type: "unknown", url: "valid-url" },
-          ] as any,
+          ] as unknown as ApifyXResponse["media"],
           extendedEntities: {
             media: [
               {
                 media_url_https: null,
                 video_info: {
-                  variants: "not an array" as any,
+                  variants: "not an array" as unknown as unknown[],
                 },
               },
             ],
@@ -469,13 +471,13 @@ describe("X.com Crawler Error Handling", () => {
         const { apifyMocks } = setupTestScenario({
           apifyScenario: {
             scenario: "success",
-            responseData: malformedResponse as any,
+            responseData: malformedResponse as unknown as ApifyXResponse,
           },
         });
 
         await configureApifyMockScenario(apifyMocks, {
           scenario: "success",
-          responseData: malformedResponse as any,
+          responseData: malformedResponse as unknown as ApifyXResponse,
         });
 
         const runInfo = await apifyMocks.call({});
@@ -491,27 +493,29 @@ describe("X.com Crawler Error Handling", () => {
         const tweetWithoutId = {
           text: "This tweet has no ID",
           author: { userName: "testuser" },
-        } as any;
+        };
 
-        expect(tweetWithoutId.id).toBeUndefined();
+        expect((tweetWithoutId as { id?: string }).id).toBeUndefined();
       });
 
       it("should handle tweet without text content", () => {
         const tweetWithoutText = {
           id: "123456789",
           author: { userName: "testuser" },
-        } as any;
+        };
 
-        expect(tweetWithoutText.text).toBeUndefined();
+        expect((tweetWithoutText as { text?: string }).text).toBeUndefined();
       });
 
       it("should handle tweet without author information", () => {
         const tweetWithoutAuthor = {
           id: "123456789",
           text: "This tweet has no author",
-        } as any;
+        };
 
-        expect(tweetWithoutAuthor.author).toBeUndefined();
+        expect(
+          (tweetWithoutAuthor as { author?: unknown }).author,
+        ).toBeUndefined();
       });
 
       it("should handle tweet with empty author object", () => {
@@ -519,7 +523,7 @@ describe("X.com Crawler Error Handling", () => {
           id: "123456789",
           text: "This tweet has empty author",
           author: {},
-        } as any;
+        };
 
         expect(Object.keys(tweetWithEmptyAuthor.author)).toHaveLength(0);
       });
@@ -529,11 +533,16 @@ describe("X.com Crawler Error Handling", () => {
           id: "123456789",
           text: "This tweet has no metrics",
           author: { userName: "testuser" },
-        } as any;
+        };
 
-        expect(tweetWithoutMetrics.likes).toBeUndefined();
-        expect(tweetWithoutMetrics.retweets).toBeUndefined();
-        expect(tweetWithoutMetrics.replies).toBeUndefined();
+        const tweet = tweetWithoutMetrics as {
+          likes?: number;
+          retweets?: number;
+          replies?: number;
+        };
+        expect(tweet.likes).toBeUndefined();
+        expect(tweet.retweets).toBeUndefined();
+        expect(tweet.replies).toBeUndefined();
       });
     });
 
@@ -542,12 +551,12 @@ describe("X.com Crawler Error Handling", () => {
         const tweetWithStringNumbers = {
           id: "123456789",
           text: "Test tweet",
-          likes: "1000" as any,
-          retweets: "50" as any,
-          replies: "25" as any,
+          likes: "1000",
+          retweets: "50",
+          replies: "25",
           author: {
             userName: "testuser",
-            followers: "5000" as any,
+            followers: "5000",
           },
         };
 
@@ -561,9 +570,9 @@ describe("X.com Crawler Error Handling", () => {
           text: "Test tweet",
           author: {
             userName: "testuser",
-            verified: "true" as any,
+            verified: "true",
           },
-          isThread: "false" as any,
+          isThread: "false",
         };
 
         expect(typeof tweetWithStringBooleans.author.verified).toBe("string");
@@ -588,9 +597,9 @@ describe("X.com Crawler Error Handling", () => {
         const tweetWithNonArrays = {
           id: "123456789",
           text: "Test tweet",
-          photos: "single-photo-url.jpg" as any,
-          hashtags: "#single-hashtag" as any,
-          thread: { id: "nested-tweet" } as any,
+          photos: "single-photo-url.jpg",
+          hashtags: "#single-hashtag",
+          thread: { id: "nested-tweet" },
         };
 
         expect(typeof tweetWithNonArrays.photos).toBe("string");
@@ -605,11 +614,11 @@ describe("X.com Crawler Error Handling", () => {
         const { apifyMocks } = setupTestScenario({});
 
         apifyMocks.listItems.mockRejectedValue(
-          new Error("Unexpected end of JSON input")
+          new Error("Unexpected end of JSON input"),
         );
 
         await expect(apifyMocks.listItems({})).rejects.toThrow(
-          "Unexpected end of JSON input"
+          "Unexpected end of JSON input",
         );
       });
 
@@ -617,20 +626,20 @@ describe("X.com Crawler Error Handling", () => {
         const { apifyMocks } = setupTestScenario({});
 
         apifyMocks.listItems.mockRejectedValue(
-          new Error("Invalid escape sequence in JSON at position 45")
+          new Error("Invalid escape sequence in JSON at position 45"),
         );
 
         await expect(apifyMocks.listItems({})).rejects.toThrow(
-          "Invalid escape sequence"
+          "Invalid escape sequence",
         );
       });
 
       it("should handle JSON with circular references", () => {
-        const circularObject: any = { id: "123" };
+        const circularObject: { id: string; self?: unknown } = { id: "123" };
         circularObject.self = circularObject;
 
         expect(() => JSON.stringify(circularObject)).toThrow(
-          "Converting circular structure to JSON"
+          "Converting circular structure to JSON",
         );
       });
 
@@ -664,7 +673,9 @@ describe("X.com Crawler Error Handling", () => {
           shouldThrow: true,
         });
 
-        await expect(apifyMocks.call({})).rejects.toThrow("Rate limit exceeded");
+        await expect(apifyMocks.call({})).rejects.toThrow(
+          "Rate limit exceeded",
+        );
       });
 
       it("should handle rate limit with retry-after header", async () => {
@@ -686,11 +697,11 @@ describe("X.com Crawler Error Handling", () => {
 
         // First call should fail with rate limit
         await expect(apifyMocks.call({})).rejects.toEqual(
-          X_COM_TEST_FIXTURES.rateLimitError
+          X_COM_TEST_FIXTURES.rateLimitError,
         );
 
         // Wait for recovery period
-        await new Promise(resolve => setTimeout(resolve, 150));
+        await new Promise((resolve) => setTimeout(resolve, 150));
 
         // Second call should succeed
         const runInfo = await apifyMocks.call({});
@@ -703,7 +714,9 @@ describe("X.com Crawler Error Handling", () => {
         const { apifyMocks } = setupTestScenario({});
 
         apifyMocks.call.mockRejectedValue(
-          new Error("502 Bad Gateway: The server received an invalid response from an upstream server")
+          new Error(
+            "502 Bad Gateway: The server received an invalid response from an upstream server",
+          ),
         );
 
         await expect(apifyMocks.call({})).rejects.toThrow("502 Bad Gateway");
@@ -715,7 +728,8 @@ describe("X.com Crawler Error Handling", () => {
         const maintenanceError = {
           error: {
             type: "service_unavailable",
-            message: "Service is temporarily down for maintenance. Please try again in 30 minutes.",
+            message:
+              "Service is temporarily down for maintenance. Please try again in 30 minutes.",
             statusCode: 503,
           },
         };
@@ -738,7 +752,7 @@ describe("X.com Crawler Error Handling", () => {
           try {
             await apifyMocks.call({});
             successCount++;
-          } catch (error) {
+          } catch {
             failureCount++;
           }
         }
@@ -761,7 +775,9 @@ describe("X.com Crawler Error Handling", () => {
           shouldThrow: true,
         });
 
-        await expect(apifyMocks.call({})).rejects.toThrow("Authentication failed");
+        await expect(apifyMocks.call({})).rejects.toThrow(
+          "Authentication failed",
+        );
       });
 
       it("should handle expired API tokens", async () => {
@@ -785,7 +801,7 @@ describe("X.com Crawler Error Handling", () => {
 
         const revokedAccessError = {
           error: {
-            type: "authorization_error", 
+            type: "authorization_error",
             message: "API access has been revoked for this account.",
             statusCode: 403,
           },
@@ -800,10 +816,12 @@ describe("X.com Crawler Error Handling", () => {
         const { apifyMocks } = setupTestScenario({});
 
         apifyMocks.call.mockRejectedValue(
-          new Error("Invalid API key format. Expected format: apify_api_...")
+          new Error("Invalid API key format. Expected format: apify_api_..."),
         );
 
-        await expect(apifyMocks.call({})).rejects.toThrow("Invalid API key format");
+        await expect(apifyMocks.call({})).rejects.toThrow(
+          "Invalid API key format",
+        );
       });
     });
 
@@ -814,7 +832,8 @@ describe("X.com Crawler Error Handling", () => {
         const quotaError = {
           error: {
             type: "quota_exceeded",
-            message: "Monthly quota exceeded. Upgrade your plan or wait until next month.",
+            message:
+              "Monthly quota exceeded. Upgrade your plan or wait until next month.",
             statusCode: 429,
           },
         };
@@ -830,7 +849,8 @@ describe("X.com Crawler Error Handling", () => {
         const computeQuotaError = {
           error: {
             type: "compute_quota_exceeded",
-            message: "Compute units quota exceeded. Current usage: 1000/1000 units.",
+            message:
+              "Compute units quota exceeded. Current usage: 1000/1000 units.",
             statusCode: 429,
           },
         };
@@ -846,7 +866,8 @@ describe("X.com Crawler Error Handling", () => {
         const storageQuotaError = {
           error: {
             type: "storage_quota_exceeded",
-            message: "Storage quota exceeded. Please delete old datasets or upgrade your plan.",
+            message:
+              "Storage quota exceeded. Please delete old datasets or upgrade your plan.",
             statusCode: 507,
           },
         };
@@ -862,7 +883,8 @@ describe("X.com Crawler Error Handling", () => {
         const concurrencyError = {
           error: {
             type: "concurrency_limit_exceeded",
-            message: "Maximum number of concurrent actor runs reached (5/5). Please wait for existing runs to finish.",
+            message:
+              "Maximum number of concurrent actor runs reached (5/5). Please wait for existing runs to finish.",
             statusCode: 429,
           },
         };
@@ -878,10 +900,10 @@ describe("X.com Crawler Error Handling", () => {
     describe("Fallback mechanisms", () => {
       it("should fall back to basic crawler when Apify fails", () => {
         const apifyService = createMockApifyService();
-        
+
         // Configure service to fail, then check fallback is triggered
         apifyService.scrapeXUrl.mockRejectedValue(
-          new Error("Apify service unavailable")
+          new Error("Apify service unavailable"),
         );
 
         expect(async () => {
@@ -909,11 +931,15 @@ describe("X.com Crawler Error Handling", () => {
           }
           return {
             id: "run_success",
-            actId: "apify/x-scraper", 
+            actId: "apify/x-scraper",
             status: "SUCCEEDED" as const,
             startedAt: new Date().toISOString(),
             finishedAt: new Date().toISOString(),
-            stats: { inputBodyLen: 1024, restartCount: 0, durationMillis: 1000 },
+            stats: {
+              inputBodyLen: 1024,
+              restartCount: 0,
+              durationMillis: 1000,
+            },
             defaultDatasetId: "dataset_success",
           };
         });
@@ -928,7 +954,7 @@ describe("X.com Crawler Error Handling", () => {
           } catch (error) {
             if (i < maxAttempts - 1) {
               const delay = baseDelay * Math.pow(2, i);
-              await new Promise(resolve => setTimeout(resolve, delay));
+              await new Promise((resolve) => setTimeout(resolve, delay));
             } else {
               throw error;
             }
@@ -938,15 +964,15 @@ describe("X.com Crawler Error Handling", () => {
 
       it("should cache successful responses to avoid re-fetching", () => {
         const apifyService = createMockApifyService();
-        const cache = new Map<string, ProcessedXContent>();
+        const cache = new Map();
 
         // Mock implementation with caching
         apifyService.scrapeXUrl.mockImplementation(async (url: string) => {
           if (cache.has(url)) {
-            return cache.get(url)!;
+            return cache.get(url);
           }
 
-          const result: ProcessedXContent = {
+          const result = {
             title: "Cached Tweet",
             content: "This is cached content",
             author: "testuser",
@@ -976,14 +1002,14 @@ describe("X.com Crawler Error Handling", () => {
           if (failureCount >= failureThreshold) {
             circuitOpen = true;
           }
-          
+
           throw new Error(`Service failure ${failureCount}`);
         };
 
         // Test circuit breaker behavior
         for (let i = 0; i < failureThreshold + 2; i++) {
           expect(() => mockServiceCall()).toThrow();
-          
+
           if (i >= failureThreshold) {
             expect(() => mockServiceCall()).toThrow("Circuit breaker is open");
           }
@@ -1004,7 +1030,9 @@ describe("X.com Crawler Error Handling", () => {
         expect(circuitOpen).toBe(true);
 
         // Wait for recovery
-        await new Promise(resolve => setTimeout(resolve, recoveryTimeout + 10));
+        await new Promise((resolve) =>
+          setTimeout(resolve, recoveryTimeout + 10),
+        );
 
         // Circuit should now be closed
         expect(circuitOpen).toBe(false);
@@ -1036,11 +1064,11 @@ describe("X.com Crawler Error Handling", () => {
           title: "Basic Tweet",
           content: "Basic content only",
           // Missing: media, thread, advanced metadata
-        } as ProcessedXContent);
+        });
 
         apifyService.getStatus.mockReturnValue({
           enabled: true,
-          configured: true, 
+          configured: true,
           actorId: "apify/x-scraper",
           // Could add healthStatus: "degraded"
         });
@@ -1054,10 +1082,10 @@ describe("X.com Crawler Error Handling", () => {
     it("should handle multiple error types in sequence", async () => {
       const { apifyMocks } = setupTestScenario({});
 
-      const errorSequence = [
+      const errorSequence: (Error | ApifyRunInfo)[] = [
         new Error("Network timeout"),
-        X_COM_TEST_FIXTURES.rateLimitError,
-        X_COM_TEST_FIXTURES.authError,
+        X_COM_TEST_FIXTURES.rateLimitError as unknown as Error,
+        X_COM_TEST_FIXTURES.authError as unknown as Error,
         {
           id: "run_success",
           actId: "apify/x-scraper",
@@ -1072,7 +1100,7 @@ describe("X.com Crawler Error Handling", () => {
       let callCount = 0;
       apifyMocks.call.mockImplementation(async () => {
         const result = errorSequence[callCount++];
-        if (result instanceof Error || (result as any).error) {
+        if (result instanceof Error) {
           throw result;
         }
         return result;
@@ -1092,9 +1120,15 @@ describe("X.com Crawler Error Handling", () => {
       const apifyService = createMockApifyService();
 
       const mixedResults = new Map([
-        ["https://x.com/valid1/status/123", { title: "Valid Tweet 1", content: "Content 1" }],
+        [
+          "https://x.com/valid1/status/123",
+          { title: "Valid Tweet 1", content: "Content 1" },
+        ],
         ["https://x.com/invalid/status/456", null], // Invalid/failed
-        ["https://x.com/valid2/status/789", { title: "Valid Tweet 2", content: "Content 2" }],
+        [
+          "https://x.com/valid2/status/789",
+          { title: "Valid Tweet 2", content: "Content 2" },
+        ],
       ]);
 
       configureApifyServiceMock(apifyService, {
@@ -1105,14 +1139,18 @@ describe("X.com Crawler Error Handling", () => {
       });
 
       // Test individual URLs
-      const result1 = await apifyService.scrapeXUrl("https://x.com/valid1/status/123");
+      const result1 = await apifyService.scrapeXUrl(
+        "https://x.com/valid1/status/123",
+      );
       expect(result1?.title).toBe("Valid Tweet 1");
 
-      const result2 = await apifyService.scrapeXUrl("https://x.com/invalid/status/456");
+      const result2 = await apifyService.scrapeXUrl(
+        "https://x.com/invalid/status/456",
+      );
       expect(result2).toBeNull();
 
       await expect(
-        apifyService.scrapeXUrl("https://x.com/error/status/999")
+        apifyService.scrapeXUrl("https://x.com/error/status/999"),
       ).rejects.toThrow("Failed to scrape");
     });
 
@@ -1121,7 +1159,7 @@ describe("X.com Crawler Error Handling", () => {
 
       // Test data consistency after errors
       const validData = X_COM_TEST_FIXTURES.comprehensive;
-      
+
       apifyMocks.call
         .mockRejectedValueOnce(new Error("Temporary failure"))
         .mockResolvedValueOnce({

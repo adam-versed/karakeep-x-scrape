@@ -5,12 +5,10 @@ import { expect, vi } from "vitest";
 
 import type { ZCrawlLinkRequest } from "@karakeep/shared/queues";
 import type {
-  ApifyErrorResponse,
   ApifyRunInfo,
   ApifyScrapingConfig,
   ApifyXResponse,
   ProcessedXContent,
-  ScrapedPost,
 } from "@karakeep/shared/types/apify";
 
 import { X_COM_TEST_FIXTURES } from "../fixtures/x-com-responses";
@@ -64,10 +62,10 @@ export interface MockAssetConfig {
  * Global mock state manager
  */
 class MockStateManager {
-  private scenarios: Map<string, MockScenarioConfig> = new Map();
-  private assetConfigs: Map<string, MockAssetConfig> = new Map();
-  private callCounts: Map<string, number> = new Map();
-  private queuedJobs: Map<string, any[]> = new Map();
+  private scenarios = new Map<string, MockScenarioConfig>();
+  private assetConfigs = new Map<string, MockAssetConfig>();
+  private callCounts = new Map<string, number>();
+  private queuedJobs = new Map<string, unknown[]>();
 
   reset() {
     this.scenarios.clear();
@@ -101,13 +99,13 @@ class MockStateManager {
     return this.assetConfigs.get(url);
   }
 
-  addQueuedJob(queueName: string, job: any) {
+  addQueuedJob(queueName: string, job: unknown) {
     const jobs = this.queuedJobs.get(queueName) || [];
     jobs.push(job);
     this.queuedJobs.set(queueName, jobs);
   }
 
-  getQueuedJobs(queueName: string): any[] {
+  getQueuedJobs(queueName: string): unknown[] {
     return this.queuedJobs.get(queueName) || [];
   }
 
@@ -337,7 +335,9 @@ export function configureApifyServiceMock(
 /**
  * Create a mock queue instance
  */
-export function createMockQueue<T>(queueName: string): SqliteQueue<T> {
+export function createMockQueue<T = unknown>(
+  queueName: string,
+): SqliteQueue<T> {
   return {
     enqueue: vi.fn().mockImplementation(async (job: T) => {
       mockState.addQueuedJob(queueName, job);
@@ -550,7 +550,11 @@ export const testDataGenerators = {
     videos?: number;
     gifs?: number;
   }): ApifyXResponse {
-    const media: any[] = [];
+    const media: {
+      url: string;
+      type: "photo" | "video" | "gif";
+      thumbnailUrl?: string;
+    }[] = [];
     const photos: string[] = [];
     const videos: string[] = [];
 
@@ -560,7 +564,7 @@ export const testDataGenerators = {
       photos.push(url);
       media.push({
         url,
-        type: "photo",
+        type: "photo" as const,
       });
     }
 
@@ -570,7 +574,7 @@ export const testDataGenerators = {
       videos.push(url);
       media.push({
         url,
-        type: "video",
+        type: "video" as const,
         thumbnailUrl: `https://pbs.twimg.com/ext_tw_video_thumb/test_video_${i}/img.jpg`,
       });
     }
@@ -581,7 +585,7 @@ export const testDataGenerators = {
       videos.push(url);
       media.push({
         url,
-        type: "gif",
+        type: "gif" as const,
       });
     }
 
@@ -606,13 +610,13 @@ export const testDataGenerators = {
    * Generate a malformed response for edge case testing
    */
   generateMalformedResponse(): Partial<ApifyXResponse> {
-    const variants = [
+    const variants: Partial<ApifyXResponse>[] = [
       { id: "" }, // Empty ID
-      { text: null as any }, // Null text
+      { text: null as unknown as string }, // Null text
       { author: {} }, // Empty author
       { createdAt: "invalid-date" }, // Invalid date
       { likes: -1 }, // Negative metrics
-      { media: [null, undefined, ""] as any }, // Invalid media
+      { media: [null, undefined, ""] as unknown as ApifyXResponse["media"] }, // Invalid media
     ];
 
     return variants[Math.floor(Math.random() * variants.length)];
@@ -626,7 +630,10 @@ export const assertionHelpers = {
   /**
    * Assert that a job was enqueued with expected properties
    */
-  assertJobEnqueued(queue: SqliteQueue<any>, expectedJob: Partial<any>) {
+  assertJobEnqueued(
+    queue: SqliteQueue<unknown>,
+    expectedJob: Partial<unknown>,
+  ) {
     expect(queue.enqueue).toHaveBeenCalled();
     const calls = (queue.enqueue as Mock).mock.calls;
     const lastCall = calls[calls.length - 1][0];
@@ -750,7 +757,7 @@ export const advancedScenarios = {
    */
   networkInstability(
     mocks: ReturnType<typeof createMockApifyClient>["mocks"],
-    failureRate: number = 0.3,
+    failureRate = 0.3,
   ) {
     mocks.call.mockImplementation(async () => {
       if (Math.random() < failureRate) {
@@ -785,7 +792,7 @@ export const performanceUtils = {
   /**
    * Create a scenario with configurable latency
    */
-  createLatencyScenario(baseLatency: number, variance: number = 0.2) {
+  createLatencyScenario(baseLatency: number, variance = 0.2) {
     return {
       getDelay: () => {
         const min = baseLatency * (1 - variance);
@@ -803,7 +810,7 @@ export const performanceUtils = {
 
     return {
       wrapMock: (mockFn: Mock) => {
-        return mockFn.mockImplementation(async (...args: any[]) => {
+        return mockFn.mockImplementation(async (...args: unknown[]) => {
           const start = Date.now();
           try {
             const result = await mockFn.getMockImplementation()?.(...args);
@@ -842,7 +849,7 @@ export const integrationHelpers = {
    */
   createIntegrationScenario(options: {
     apifyResponses: ApifyXResponse[];
-    expectedQueueJobs: { queueName: string; job: any }[];
+    expectedQueueJobs: { queueName: string; job: unknown }[];
     expectedAssetDownloads: string[];
     expectedExternalCalls: string[];
   }) {
@@ -855,7 +862,7 @@ export const integrationHelpers = {
 
     // Track expected calls
     const tracker = {
-      queueJobs: [] as any[],
+      queueJobs: [] as unknown[],
       assetDownloads: [] as string[],
       externalCalls: [] as string[],
     };
@@ -915,10 +922,8 @@ export { X_COM_TEST_FIXTURES };
 // Re-export types from shared packages for convenience
 export type {
   ApifyXResponse,
-  ApifyErrorResponse,
   ProcessedXContent,
   ApifyScrapingConfig,
-  ScrapedPost,
 } from "@karakeep/shared/types/apify";
 
 // Local types are already exported above

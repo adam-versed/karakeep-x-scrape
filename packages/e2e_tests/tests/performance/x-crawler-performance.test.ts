@@ -13,12 +13,9 @@ import { createKarakeepClient } from "@karakeep/sdk";
 
 import {
   advancedScenarios,
-  assertionHelpers,
   cleanupMocks,
   createMockApifyClient,
-  createMockApifyService,
   createMockQueues,
-  mockState,
   performanceUtils,
   setupTestScenario,
   testDataGenerators,
@@ -49,7 +46,7 @@ describe("X.com Crawler Performance Tests", () => {
       baseUrl: `http://localhost:${port}/api/v1/`,
       headers: getAuthHeader(apiKey),
     });
-    
+
     performanceMonitor.reset();
     cleanupMocks();
   });
@@ -65,7 +62,7 @@ describe("X.com Crawler Performance Tests", () => {
   describe("Rate Limiting Behavior Tests", () => {
     it("should handle multiple concurrent X.com URL processing with proper rate limiting", async () => {
       // Setup scenario with rate limiting
-      const scenario = setupTestScenario({
+      setupTestScenario({
         apifyScenario: {
           scenario: "success",
           responseData: X_COM_TEST_FIXTURES.singleTweet,
@@ -85,7 +82,7 @@ describe("X.com Crawler Performance Tests", () => {
       const bookmarkPromises = urls.map((url) =>
         client.POST("/bookmarks", {
           body: { type: "link", url },
-        })
+        }),
       );
 
       // All requests should be accepted
@@ -105,12 +102,14 @@ describe("X.com Crawler Performance Tests", () => {
                   query: { includeContent: true },
                 },
               });
-              return data?.content.type === "link" && data.content.crawledAt !== null;
+              return (
+                data?.content.type === "link" && data.content.crawledAt !== null
+              );
             },
             "Bookmark processed",
-            30000
-          )
-        )
+            30000,
+          ),
+        ),
       );
 
       const totalTime = Date.now() - startTime;
@@ -119,24 +118,24 @@ describe("X.com Crawler Performance Tests", () => {
       // Performance assertions
       expect(totalTime).toBeLessThan(30000); // Should complete within 30 seconds
       expect(averageTimePerRequest).toBeLessThan(6000); // Average < 6 seconds per request
-      
-      console.log(`📊 Concurrent processing: ${urls.length} URLs in ${totalTime}ms (avg: ${averageTimePerRequest}ms per request)`);
+
+      console.log(
+        `📊 Concurrent processing: ${urls.length} URLs in ${totalTime}ms (avg: ${averageTimePerRequest}ms per request)`,
+      );
     });
 
     it("should validate Apify API rate limit compliance", async () => {
       const rateLimitScenario = advancedScenarios.rateLimitThenRecovery;
       const apifyMocks = createMockApifyClient();
-      
+
       // Setup rate limit then recovery scenario
       await rateLimitScenario(apifyMocks.mocks, {
         rateLimitDuration: 2000, // 2 second rate limit
         successResponse: X_COM_TEST_FIXTURES.singleTweet,
       });
 
-      const url = "https://x.com/ratelimituser/status/9999999999999999999";
-      
       const startTime = Date.now();
-      
+
       try {
         // First call should hit rate limit
         await apifyMocks.client.actor("test").call({});
@@ -147,7 +146,7 @@ describe("X.com Crawler Performance Tests", () => {
       }
 
       // Wait for rate limit recovery
-      await new Promise(resolve => setTimeout(resolve, 2100));
+      await new Promise((resolve) => setTimeout(resolve, 2100));
 
       // Second call should succeed
       const result = await apifyMocks.client.actor("test").call({});
@@ -162,32 +161,38 @@ describe("X.com Crawler Performance Tests", () => {
 
     it("should measure worker queue throughput under load", async () => {
       const queues = createMockQueues();
-      const urls = Array.from({ length: 20 }, (_, i) => 
-        `https://x.com/throughputuser${i}/status/${1000000000000000000 + i}`
+      const urls = Array.from(
+        { length: 20 },
+        (_, i) =>
+          `https://x.com/throughputuser${i}/status/${1000000000000000000 + i}`,
       );
 
       const startTime = Date.now();
-      
+
       // Enqueue multiple jobs rapidly
-      const enqueuePromises = urls.map(url => 
+      const enqueuePromises = urls.map(() =>
         queues.LinkCrawlerQueue.enqueue({
           bookmarkId: `bookmark-${Date.now()}-${Math.random()}`,
           runInference: true,
           archiveFullPage: false,
-        })
+        }),
       );
 
       await Promise.all(enqueuePromises);
       const enqueueTime = Date.now() - startTime;
 
       // Check queue size
-      const queueSize = await (queues.LinkCrawlerQueue as any).size();
+      const queueSize = await (
+        queues.LinkCrawlerQueue as unknown as { size: () => Promise<number> }
+      ).size();
       expect(queueSize).toBe(urls.length);
 
       const throughput = urls.length / (enqueueTime / 1000); // jobs per second
       expect(throughput).toBeGreaterThan(10); // Should handle at least 10 jobs/second
 
-      console.log(`📊 Queue throughput: ${throughput.toFixed(2)} jobs/second (${urls.length} jobs in ${enqueueTime}ms)`);
+      console.log(
+        `📊 Queue throughput: ${throughput.toFixed(2)} jobs/second (${urls.length} jobs in ${enqueueTime}ms)`,
+      );
     });
   });
 
@@ -195,7 +200,7 @@ describe("X.com Crawler Performance Tests", () => {
     it("should handle large thread processing without memory issues", async () => {
       // Generate a large thread (50+ tweets)
       const largeThread = testDataGenerators.generateThread(75);
-      const scenario = setupTestScenario({
+      setupTestScenario({
         apifyScenario: {
           scenario: "success",
           responseData: largeThread,
@@ -203,11 +208,12 @@ describe("X.com Crawler Performance Tests", () => {
         },
       });
 
-      const threadUrl = "https://x.com/largethreaduser/status/8888888888888888888";
-      
+      const threadUrl =
+        "https://x.com/largethreaduser/status/8888888888888888888";
+
       // Monitor memory before processing
       const initialMemory = process.memoryUsage();
-      
+
       const { data: bookmark } = await client.POST("/bookmarks", {
         body: { type: "link", url: threadUrl },
       });
@@ -222,10 +228,12 @@ describe("X.com Crawler Performance Tests", () => {
               query: { includeContent: true },
             },
           });
-          return data?.content.type === "link" && data.content.crawledAt !== null;
+          return (
+            data?.content.type === "link" && data.content.crawledAt !== null
+          );
         },
         "Large thread processed",
-        45000
+        45000,
       );
 
       // Monitor memory after processing
@@ -235,8 +243,10 @@ describe("X.com Crawler Performance Tests", () => {
 
       // Memory increase should be reasonable for a 75-tweet thread
       expect(memoryIncreaseMB).toBeLessThan(100); // Less than 100MB increase
-      
-      console.log(`📊 Memory usage for 75-tweet thread: +${memoryIncreaseMB.toFixed(2)}MB`);
+
+      console.log(
+        `📊 Memory usage for 75-tweet thread: +${memoryIncreaseMB.toFixed(2)}MB`,
+      );
 
       // Verify thread content was properly processed
       const processedBookmark = await client.GET(`/bookmarks/{bookmarkId}`, {
@@ -248,7 +258,9 @@ describe("X.com Crawler Performance Tests", () => {
 
       expect(processedBookmark.data?.content.type).toBe("link");
       if (processedBookmark.data?.content.type === "link") {
-        expect(processedBookmark.data.content.description?.length || 0).toBeGreaterThan(1000);
+        expect(
+          processedBookmark.data.content.description?.length || 0,
+        ).toBeGreaterThan(1000);
       }
     });
 
@@ -256,20 +268,25 @@ describe("X.com Crawler Performance Tests", () => {
       // Generate tweets with multiple images and videos
       const mediaTweets = [
         testDataGenerators.generateMediaTweet({ images: 4, videos: 1 }),
-        testDataGenerators.generateMediaTweet({ images: 3, videos: 1, gifs: 1 }),
+        testDataGenerators.generateMediaTweet({
+          images: 3,
+          videos: 1,
+          gifs: 1,
+        }),
         testDataGenerators.generateMediaTweet({ images: 4 }),
         testDataGenerators.generateMediaTweet({ videos: 1, gifs: 2 }),
       ];
 
-      const mediaUrls = mediaTweets.map((_, i) => 
-        `https://x.com/mediauser${i}/status/${7000000000000000000 + i}`
+      const mediaUrls = mediaTweets.map(
+        (_, i) =>
+          `https://x.com/mediauser${i}/status/${7000000000000000000 + i}`,
       );
 
       const initialMemory = process.memoryUsage();
 
       const bookmarkPromises = mediaUrls.map((url, index) => {
         // Setup different mock scenarios for each URL
-        const scenario = setupTestScenario({
+        setupTestScenario({
           apifyScenario: {
             scenario: "success",
             responseData: mediaTweets[index],
@@ -295,12 +312,14 @@ describe("X.com Crawler Performance Tests", () => {
                   query: { includeContent: true },
                 },
               });
-              return data?.content.type === "link" && data.content.crawledAt !== null;
+              return (
+                data?.content.type === "link" && data.content.crawledAt !== null
+              );
             },
             "Media bookmark processed",
-            30000
-          )
-        )
+            30000,
+          ),
+        ),
       );
 
       const finalMemory = process.memoryUsage();
@@ -310,7 +329,9 @@ describe("X.com Crawler Performance Tests", () => {
       // Memory should not grow excessively with media processing
       expect(memoryIncreaseMB).toBeLessThan(200); // Less than 200MB for 4 media-heavy tweets
 
-      console.log(`📊 Memory usage for media-heavy processing: +${memoryIncreaseMB.toFixed(2)}MB`);
+      console.log(
+        `📊 Memory usage for media-heavy processing: +${memoryIncreaseMB.toFixed(2)}MB`,
+      );
     });
 
     it("should detect memory leaks during continuous processing", async () => {
@@ -319,8 +340,8 @@ describe("X.com Crawler Performance Tests", () => {
 
       for (let i = 0; i < iterations; i++) {
         const url = `https://x.com/leaktest${i}/status/${6000000000000000000 + i}`;
-        
-        const scenario = setupTestScenario({
+
+        setupTestScenario({
           apifyScenario: {
             scenario: "success",
             responseData: X_COM_TEST_FIXTURES.singleTweet,
@@ -340,10 +361,12 @@ describe("X.com Crawler Performance Tests", () => {
                 query: { includeContent: true },
               },
             });
-            return data?.content.type === "link" && data.content.crawledAt !== null;
+            return (
+              data?.content.type === "link" && data.content.crawledAt !== null
+            );
           },
           "Leak test bookmark processed",
-          15000
+          15000,
         );
 
         // Force garbage collection if available
@@ -357,31 +380,37 @@ describe("X.com Crawler Performance Tests", () => {
       // Analyze memory trend
       const firstHalf = memorySnapshots.slice(0, Math.floor(iterations / 2));
       const secondHalf = memorySnapshots.slice(Math.floor(iterations / 2));
-      
-      const firstHalfAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
-      const secondHalfAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
-      
+
+      const firstHalfAvg =
+        firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+      const secondHalfAvg =
+        secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+
       const memoryGrowthMB = (secondHalfAvg - firstHalfAvg) / (1024 * 1024);
 
       // Memory growth should be minimal (< 50MB) indicating no significant leaks
       expect(memoryGrowthMB).toBeLessThan(50);
 
-      console.log(`📊 Memory leak test: ${memoryGrowthMB.toFixed(2)}MB growth over ${iterations} iterations`);
+      console.log(
+        `📊 Memory leak test: ${memoryGrowthMB.toFixed(2)}MB growth over ${iterations} iterations`,
+      );
     });
   });
 
   describe("Load Testing Scenarios", () => {
     it("should handle concurrent bookmark creation stress test", async () => {
       const concurrentRequests = 15;
-      const urls = Array.from({ length: concurrentRequests }, (_, i) => 
-        `https://x.com/loadtest${i}/status/${5000000000000000000 + i}`
+      const urls = Array.from(
+        { length: concurrentRequests },
+        (_, i) =>
+          `https://x.com/loadtest${i}/status/${5000000000000000000 + i}`,
       );
 
       const startTime = Date.now();
-      
+
       // Fire all requests simultaneously
       const bookmarkPromises = urls.map(async (url) => {
-        const scenario = setupTestScenario({
+        setupTestScenario({
           apifyScenario: {
             scenario: "success",
             responseData: X_COM_TEST_FIXTURES.singleTweet,
@@ -395,8 +424,7 @@ describe("X.com Crawler Performance Tests", () => {
       });
 
       const results = await Promise.allSettled(bookmarkPromises);
-      const successful = results.filter(r => r.status === "fulfilled").length;
-      const failed = results.filter(r => r.status === "rejected").length;
+      const successful = results.filter((r) => r.status === "fulfilled").length;
 
       const requestTime = Date.now() - startTime;
 
@@ -404,12 +432,17 @@ describe("X.com Crawler Performance Tests", () => {
       expect(successful / concurrentRequests).toBeGreaterThan(0.8); // 80% success rate
       expect(requestTime).toBeLessThan(10000); // Complete within 10 seconds
 
-      console.log(`📊 Concurrent load test: ${successful}/${concurrentRequests} successful in ${requestTime}ms`);
+      console.log(
+        `📊 Concurrent load test: ${successful}/${concurrentRequests} successful in ${requestTime}ms`,
+      );
 
       // Wait for processing to complete for successful bookmarks
       const successfulBookmarks = results
-        .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
-        .map(r => r.value.data)
+        .filter((r) => r.status === "fulfilled")
+        .map(
+          (r) =>
+            (r as PromiseFulfilledResult<{ data: { id: string } }>).value.data,
+        )
         .filter(Boolean);
 
       if (successfulBookmarks.length > 0) {
@@ -424,38 +457,48 @@ describe("X.com Crawler Performance Tests", () => {
                     query: { includeContent: true },
                   },
                 });
-                return data?.content.type === "link" && data.content.crawledAt !== null;
+                return (
+                  data?.content.type === "link" &&
+                  data.content.crawledAt !== null
+                );
               },
               "Load test bookmark processed",
-              20000
-            )
-          )
+              20000,
+            ),
+          ),
         );
-        
+
         const processingTime = Date.now() - processingStart;
-        console.log(`📊 Processing time for ${successfulBookmarks.length} bookmarks: ${processingTime}ms`);
+        console.log(
+          `📊 Processing time for ${successfulBookmarks.length} bookmarks: ${processingTime}ms`,
+        );
       }
     });
 
     it("should monitor performance degradation under sustained load", async () => {
       const batchSize = 5;
       const batches = 4;
-      const performanceMetrics: { batchNumber: number; avgResponseTime: number; successRate: number }[] = [];
+      const performanceMetrics: {
+        batchNumber: number;
+        avgResponseTime: number;
+        successRate: number;
+      }[] = [];
 
       for (let batch = 0; batch < batches; batch++) {
-        const urls = Array.from({ length: batchSize }, (_, i) => 
-          `https://x.com/degradation${batch}_${i}/status/${4000000000000000000 + (batch * batchSize) + i}`
+        const urls = Array.from(
+          { length: batchSize },
+          (_, i) =>
+            `https://x.com/degradation${batch}_${i}/status/${4000000000000000000 + batch * batchSize + i}`,
         );
 
-        const batchStartTime = Date.now();
         const batchPromises = urls.map(async (url) => {
           const requestStart = Date.now();
-          
+
           try {
             const { data: bookmark } = await client.POST("/bookmarks", {
               body: { type: "link", url },
             });
-            
+
             return {
               success: true,
               responseTime: Date.now() - requestStart,
@@ -471,8 +514,10 @@ describe("X.com Crawler Performance Tests", () => {
         });
 
         const batchResults = await Promise.all(batchPromises);
-        const successful = batchResults.filter(r => r.success);
-        const avgResponseTime = batchResults.reduce((sum, r) => sum + r.responseTime, 0) / batchResults.length;
+        const successful = batchResults.filter((r) => r.success);
+        const avgResponseTime =
+          batchResults.reduce((sum, r) => sum + r.responseTime, 0) /
+          batchResults.length;
         const successRate = successful.length / batchResults.length;
 
         performanceMetrics.push({
@@ -481,30 +526,37 @@ describe("X.com Crawler Performance Tests", () => {
           successRate,
         });
 
-        console.log(`📊 Batch ${batch + 1}: ${avgResponseTime.toFixed(0)}ms avg, ${(successRate * 100).toFixed(1)}% success`);
+        console.log(
+          `📊 Batch ${batch + 1}: ${avgResponseTime.toFixed(0)}ms avg, ${(successRate * 100).toFixed(1)}% success`,
+        );
 
         // Brief pause between batches
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       // Analyze performance degradation
       const firstBatch = performanceMetrics[0];
       const lastBatch = performanceMetrics[performanceMetrics.length - 1];
-      
-      const responseTimeDegradation = (lastBatch.avgResponseTime - firstBatch.avgResponseTime) / firstBatch.avgResponseTime;
-      const successRateDegradation = firstBatch.successRate - lastBatch.successRate;
+
+      const responseTimeDegradation =
+        (lastBatch.avgResponseTime - firstBatch.avgResponseTime) /
+        firstBatch.avgResponseTime;
+      const successRateDegradation =
+        firstBatch.successRate - lastBatch.successRate;
 
       // Performance should not degrade significantly
       expect(responseTimeDegradation).toBeLessThan(2.0); // Less than 200% increase
       expect(successRateDegradation).toBeLessThan(0.2); // Less than 20% drop in success rate
 
-      console.log(`📊 Performance degradation: ${(responseTimeDegradation * 100).toFixed(1)}% response time increase, ${(successRateDegradation * 100).toFixed(1)}% success rate drop`);
+      console.log(
+        `📊 Performance degradation: ${(responseTimeDegradation * 100).toFixed(1)}% response time increase, ${(successRateDegradation * 100).toFixed(1)}% success rate drop`,
+      );
     });
   });
 
   describe("Timeout and Resilience Testing", () => {
     it("should handle API timeout scenarios gracefully", async () => {
-      const scenario = setupTestScenario({
+      setupTestScenario({
         apifyScenario: {
           scenario: "timeout",
           delay: 5000, // 5 second timeout
@@ -512,9 +564,9 @@ describe("X.com Crawler Performance Tests", () => {
       });
 
       const timeoutUrl = "https://x.com/timeoutuser/status/3000000000000000000";
-      
+
       const startTime = Date.now();
-      
+
       // This should still create a bookmark but fall back to regular crawling
       const { data: bookmark } = await client.POST("/bookmarks", {
         body: { type: "link", url: timeoutUrl },
@@ -531,10 +583,12 @@ describe("X.com Crawler Performance Tests", () => {
               query: { includeContent: true },
             },
           });
-          return data?.content.type === "link" && data.content.crawledAt !== null;
+          return (
+            data?.content.type === "link" && data.content.crawledAt !== null
+          );
         },
         "Timeout fallback processed",
-        30000
+        30000,
       );
 
       const totalTime = Date.now() - startTime;
@@ -542,19 +596,22 @@ describe("X.com Crawler Performance Tests", () => {
       // Should complete via fallback within reasonable time
       expect(totalTime).toBeLessThan(25000);
 
-      console.log(`📊 Timeout handling: completed in ${totalTime}ms via fallback`);
+      console.log(
+        `📊 Timeout handling: completed in ${totalTime}ms via fallback`,
+      );
     });
 
     it("should handle service unavailability with proper retry behavior", async () => {
-      const scenario = setupTestScenario({
+      setupTestScenario({
         apifyScenario: {
           scenario: "api_failure",
           errorMessage: "Service temporarily unavailable",
         },
       });
 
-      const unavailableUrl = "https://x.com/unavailableuser/status/2000000000000000000";
-      
+      const unavailableUrl =
+        "https://x.com/unavailableuser/status/2000000000000000000";
+
       // Setup network instability scenario
       const apifyMocks = createMockApifyClient();
       advancedScenarios.networkInstability(apifyMocks.mocks, 0.5); // 50% failure rate
@@ -564,7 +621,7 @@ describe("X.com Crawler Performance Tests", () => {
 
       for (let i = 0; i < attempts; i++) {
         const attemptStart = Date.now();
-        
+
         try {
           const { data: bookmark } = await client.POST("/bookmarks", {
             body: { type: "link", url: `${unavailableUrl}_attempt_${i}` },
@@ -587,30 +644,33 @@ describe("X.com Crawler Performance Tests", () => {
 
         // Wait between attempts
         if (i < attempts - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
-      const successfulAttempts = results.filter(r => r.success).length;
-      const avgResponseTime = results.reduce((sum, r) => sum + r.responseTime, 0) / results.length;
+      const successfulAttempts = results.filter((r) => r.success).length;
+      const avgResponseTime =
+        results.reduce((sum, r) => sum + r.responseTime, 0) / results.length;
 
       // At least some attempts should succeed due to fallback mechanisms
       expect(successfulAttempts).toBeGreaterThan(0);
       expect(avgResponseTime).toBeLessThan(10000); // Average response under 10 seconds
 
-      console.log(`📊 Service unavailability: ${successfulAttempts}/${attempts} successful, ${avgResponseTime.toFixed(0)}ms avg`);
+      console.log(
+        `📊 Service unavailability: ${successfulAttempts}/${attempts} successful, ${avgResponseTime.toFixed(0)}ms avg`,
+      );
     });
 
     it("should validate recovery behavior after service restoration", async () => {
       const apifyMocks = createMockApifyClient();
-      
+
       // Start with failures
       let failureMode = true;
       apifyMocks.mocks.call.mockImplementation(async () => {
         if (failureMode) {
           throw new Error("Service unavailable");
         }
-        
+
         // Success response
         return {
           id: `run_${Date.now()}`,
@@ -627,10 +687,10 @@ describe("X.com Crawler Performance Tests", () => {
         items: [X_COM_TEST_FIXTURES.singleTweet],
       });
 
-      const recoveryUrl = "https://x.com/recoveryuser/status/1000000000000000000";
-      
+      const recoveryUrl =
+        "https://x.com/recoveryuser/status/1000000000000000000";
+
       // First request should fail
-      const failureStart = Date.now();
       const { data: failureBookmark } = await client.POST("/bookmarks", {
         body: { type: "link", url: `${recoveryUrl}_failure` },
       });
@@ -644,10 +704,9 @@ describe("X.com Crawler Performance Tests", () => {
       }, 2000);
 
       // Wait a bit for service restoration
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Second request should succeed
-      const successStart = Date.now();
       const { data: successBookmark } = await client.POST("/bookmarks", {
         body: { type: "link", url: `${recoveryUrl}_success` },
       });
@@ -664,10 +723,12 @@ describe("X.com Crawler Performance Tests", () => {
                 query: { includeContent: true },
               },
             });
-            return data?.content.type === "link" && data.content.crawledAt !== null;
+            return (
+              data?.content.type === "link" && data.content.crawledAt !== null
+            );
           },
           "Failure bookmark processed via fallback",
-          25000
+          25000,
         ),
         waitUntil(
           async () => {
@@ -677,14 +738,18 @@ describe("X.com Crawler Performance Tests", () => {
                 query: { includeContent: true },
               },
             });
-            return data?.content.type === "link" && data.content.crawledAt !== null;
+            return (
+              data?.content.type === "link" && data.content.crawledAt !== null
+            );
           },
           "Success bookmark processed via restored service",
-          15000
+          15000,
         ),
       ]);
 
-      console.log("📊 Recovery behavior: Both failure and recovery cases handled successfully");
+      console.log(
+        "📊 Recovery behavior: Both failure and recovery cases handled successfully",
+      );
     });
   });
 
@@ -704,7 +769,7 @@ describe("X.com Crawler Performance Tests", () => {
       };
 
       for (const url of testUrls) {
-        const scenario = setupTestScenario({
+        setupTestScenario({
           apifyScenario: {
             scenario: "success",
             responseData: X_COM_TEST_FIXTURES.singleTweet,
@@ -730,10 +795,12 @@ describe("X.com Crawler Performance Tests", () => {
                 query: { includeContent: true },
               },
             });
-            return data?.content.type === "link" && data.content.crawledAt !== null;
+            return (
+              data?.content.type === "link" && data.content.crawledAt !== null
+            );
           },
           "Metrics bookmark processed",
-          20000
+          20000,
         );
         const processingTime = Date.now() - processingStart;
         metrics.processingTimes.push(processingTime);
@@ -746,10 +813,16 @@ describe("X.com Crawler Performance Tests", () => {
       }
 
       // Calculate statistics
-      const avgRequestTime = metrics.requestTimes.reduce((a, b) => a + b, 0) / metrics.requestTimes.length;
-      const avgProcessingTime = metrics.processingTimes.reduce((a, b) => a + b, 0) / metrics.processingTimes.length;
+      const avgRequestTime =
+        metrics.requestTimes.reduce((a, b) => a + b, 0) /
+        metrics.requestTimes.length;
+      const avgProcessingTime =
+        metrics.processingTimes.reduce((a, b) => a + b, 0) /
+        metrics.processingTimes.length;
       const maxMemoryUsage = Math.max(...metrics.memoryUsage);
-      const avgQueueSize = metrics.queueSizes.reduce((a, b) => a + b, 0) / metrics.queueSizes.length;
+      const avgQueueSize =
+        metrics.queueSizes.reduce((a, b) => a + b, 0) /
+        metrics.queueSizes.length;
 
       // Performance assertions
       expect(avgRequestTime).toBeLessThan(1000); // Avg request < 1 second
@@ -759,20 +832,24 @@ describe("X.com Crawler Performance Tests", () => {
 
       console.log(`📊 Performance Metrics Summary:`);
       console.log(`   Average Request Time: ${avgRequestTime.toFixed(0)}ms`);
-      console.log(`   Average Processing Time: ${avgProcessingTime.toFixed(0)}ms`);
-      console.log(`   Max Memory Usage: ${(maxMemoryUsage / (1024 * 1024)).toFixed(1)}MB`);
+      console.log(
+        `   Average Processing Time: ${avgProcessingTime.toFixed(0)}ms`,
+      );
+      console.log(
+        `   Max Memory Usage: ${(maxMemoryUsage / (1024 * 1024)).toFixed(1)}MB`,
+      );
       console.log(`   Average Queue Size: ${avgQueueSize.toFixed(1)}`);
     });
 
     it("should track performance trends over time", async () => {
       const timeWindows = 3;
       const requestsPerWindow = 4;
-      const performanceTrend: Array<{
+      const performanceTrend: {
         window: number;
         avgResponseTime: number;
         throughput: number;
         errorRate: number;
-      }> = [];
+      }[] = [];
 
       for (let window = 0; window < timeWindows; window++) {
         const windowStart = Date.now();
@@ -780,21 +857,23 @@ describe("X.com Crawler Performance Tests", () => {
 
         for (let req = 0; req < requestsPerWindow; req++) {
           const url = `https://x.com/trend_w${window}_r${req}/status/${Date.now()}${req}`;
-          
+
           windowPromises.push(
-            client.POST("/bookmarks", {
-              body: { type: "link", url },
-            }).then(
-              (result) => ({ success: true, result }),
-              (error) => ({ success: false, error })
-            )
+            client
+              .POST("/bookmarks", {
+                body: { type: "link", url },
+              })
+              .then(
+                (result) => ({ success: true, result }),
+                (error) => ({ success: false, error }),
+              ),
           );
         }
 
         const results = await Promise.all(windowPromises);
         const windowTime = Date.now() - windowStart;
-        
-        const successful = results.filter(r => r.success).length;
+
+        const successful = results.filter((r) => r.success).length;
         const avgResponseTime = windowTime / requestsPerWindow;
         const throughput = (successful / windowTime) * 1000; // requests per second
         const errorRate = (requestsPerWindow - successful) / requestsPerWindow;
@@ -806,22 +885,26 @@ describe("X.com Crawler Performance Tests", () => {
           errorRate,
         });
 
-        console.log(`📊 Window ${window + 1}: ${avgResponseTime.toFixed(0)}ms avg, ${throughput.toFixed(2)} req/s, ${(errorRate * 100).toFixed(1)}% error rate`);
+        console.log(
+          `📊 Window ${window + 1}: ${avgResponseTime.toFixed(0)}ms avg, ${throughput.toFixed(2)} req/s, ${(errorRate * 100).toFixed(1)}% error rate`,
+        );
 
         // Brief pause between windows
         if (window < timeWindows - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
 
       // Analyze trends
-      const avgResponseTimes = performanceTrend.map(w => w.avgResponseTime);
-      const throughputs = performanceTrend.map(w => w.throughput);
-      const errorRates = performanceTrend.map(w => w.errorRate);
+      const avgResponseTimes = performanceTrend.map((w) => w.avgResponseTime);
+      const throughputs = performanceTrend.map((w) => w.throughput);
+      const errorRates = performanceTrend.map((w) => w.errorRate);
 
       // Performance should remain stable across time windows
-      const responseTimeVariance = Math.max(...avgResponseTimes) - Math.min(...avgResponseTimes);
-      const avgThroughput = throughputs.reduce((a, b) => a + b, 0) / throughputs.length;
+      const responseTimeVariance =
+        Math.max(...avgResponseTimes) - Math.min(...avgResponseTimes);
+      const avgThroughput =
+        throughputs.reduce((a, b) => a + b, 0) / throughputs.length;
       const maxErrorRate = Math.max(...errorRates);
 
       expect(responseTimeVariance).toBeLessThan(5000); // Response time variance < 5 seconds
@@ -829,7 +912,9 @@ describe("X.com Crawler Performance Tests", () => {
       expect(maxErrorRate).toBeLessThan(0.3); // Error rate < 30%
 
       console.log(`📊 Performance Trend Analysis:`);
-      console.log(`   Response Time Variance: ${responseTimeVariance.toFixed(0)}ms`);
+      console.log(
+        `   Response Time Variance: ${responseTimeVariance.toFixed(0)}ms`,
+      );
       console.log(`   Average Throughput: ${avgThroughput.toFixed(2)} req/s`);
       console.log(`   Max Error Rate: ${(maxErrorRate * 100).toFixed(1)}%`);
     });

@@ -3,10 +3,7 @@
  * These fixtures provide realistic mock data for testing the Apify integration
  */
 
-import type {
-  ApifyErrorResponse,
-  ApifyXResponse,
-} from "@karakeep/shared/types/apify";
+import type { ApifyXResponse } from "@karakeep/shared/types/apify";
 
 /**
  * Single tweet response with basic text content
@@ -404,7 +401,7 @@ export const HASHTAGS_MENTIONS_TWEET_RESPONSE: ApifyXResponse = {
 /**
  * Rate limit error response
  */
-export const RATE_LIMIT_ERROR_RESPONSE: ApifyErrorResponse = {
+export const RATE_LIMIT_ERROR_RESPONSE = {
   error: {
     type: "rate_limit_exceeded",
     message: "Rate limit exceeded. Please try again in 15 minutes.",
@@ -415,7 +412,7 @@ export const RATE_LIMIT_ERROR_RESPONSE: ApifyErrorResponse = {
 /**
  * API failure error response
  */
-export const API_FAILURE_ERROR_RESPONSE: ApifyErrorResponse = {
+export const API_FAILURE_ERROR_RESPONSE = {
   error: {
     type: "api_error",
     message:
@@ -427,7 +424,7 @@ export const API_FAILURE_ERROR_RESPONSE: ApifyErrorResponse = {
 /**
  * Authentication error response
  */
-export const AUTH_ERROR_RESPONSE: ApifyErrorResponse = {
+export const AUTH_ERROR_RESPONSE = {
   error: {
     type: "authentication_error",
     message: "Invalid API key or authentication credentials.",
