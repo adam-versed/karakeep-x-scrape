@@ -83,13 +83,13 @@ describe("ApifyService", () => {
       id: "1234567890",
       text: "This is a test tweet #testing @user",
       author: {
-        username: "testuser",
+        userName: "testuser",
         name: "Test User",
         profileImageUrl: "https://example.com/avatar.jpg",
         isVerified: false,
         followers: 1000,
       },
-      created_at: "2023-12-01T10:00:00Z",
+      createdAt: "2023-12-01T10:00:00Z",
       likes: 10,
       retweets: 5,
       replies: 2,
@@ -148,7 +148,7 @@ describe("ApifyService", () => {
     test("handles malformed response data", async () => {
       mockListItems.mockResolvedValue({
         items: [
-          { id: "valid-id-2", text: "Valid tweet", user: { screen_name: "test", name: "Test" }, created_at: "2023-12-01T10:00:00Z", favorite_count: 0, retweet_count: 0, reply_count: 0, url: "https://x.com/test/status/valid-id-2" }, // Valid
+          { id: "valid-id-2", text: "Valid tweet", author: { userName: "test", name: "Test" }, createdAt: "2023-12-01T10:00:00Z", likes: 0, retweets: 0, replies: 0, url: "https://x.com/test/status/valid-id-2" }, // Valid
         ],
       });
 
@@ -185,11 +185,11 @@ describe("ApifyService", () => {
         author: {
           username: "altuser",
           displayName: "Alt User",
-          avatar: "https://example.com/alt-avatar.jpg",
+          profileImageUrl: "https://example.com/alt-avatar.jpg",
         },
         date: "2023-12-02T15:30:00Z",
         likes: 15,
-        reposts: 8,
+        retweets: 8,
         replies: 3,
         images: ["https://example.com/alt-image.jpg"],
         tweetUrl: "https://x.com/altuser/status/9876543210",
@@ -211,11 +211,11 @@ describe("ApifyService", () => {
         id: "photo-tweet",
         text: "Tweet with photos",
         photos: ["https://example.com/photo1.jpg", "https://example.com/photo2.jpg"],
-        user: { screen_name: "photouser", name: "Photo User" },
-        created_at: "2023-12-01T10:00:00Z",
-        favorite_count: 0,
-        retweet_count: 0,
-        reply_count: 0,
+        author: { userName: "photouser", name: "Photo User" },
+        createdAt: "2023-12-01T10:00:00Z",
+        likes: 0,
+        retweets: 0,
+        replies: 0,
         url: "https://x.com/photouser/status/photo-tweet",
       };
 
@@ -241,11 +241,11 @@ describe("ApifyService", () => {
         id: "video-tweet",
         text: "Tweet with video",
         videos: ["https://example.com/video1.mp4"],
-        user: { screen_name: "videouser", name: "Video User" },
-        created_at: "2023-12-01T10:00:00Z",
-        favorite_count: 0,
-        retweet_count: 0,
-        reply_count: 0,
+        author: { userName: "videouser", name: "Video User" },
+        createdAt: "2023-12-01T10:00:00Z",
+        likes: 0,
+        retweets: 0,
+        replies: 0,
         url: "https://x.com/videouser/status/video-tweet",
       };
 
@@ -270,11 +270,11 @@ describe("ApifyService", () => {
       const responseWithExtendedEntities: ApifyXResponse = {
         id: "extended-tweet",
         text: "Tweet with extended entities",
-        user: { screen_name: "extuser", name: "Extended User" },
-        created_at: "2023-12-01T10:00:00Z",
-        favorite_count: 0,
-        retweet_count: 0,
-        reply_count: 0,
+        author: { userName: "extuser", name: "Extended User" },
+        createdAt: "2023-12-01T10:00:00Z",
+        likes: 0,
+        retweets: 0,
+        replies: 0,
         url: "https://x.com/extuser/status/extended-tweet",
         extendedEntities: {
           media: [
@@ -314,21 +314,21 @@ describe("ApifyService", () => {
       const threadResponse: ApifyXResponse = {
         id: "thread-main",
         text: "Main thread post",
-        user: { screen_name: "threaduser", name: "Thread User" },
-        created_at: "2023-12-01T10:00:00Z",
-        favorite_count: 0,
-        retweet_count: 0,
-        reply_count: 0,
+        author: { userName: "threaduser", name: "Thread User" },
+        createdAt: "2023-12-01T10:00:00Z",
+        likes: 0,
+        retweets: 0,
+        replies: 0,
         url: "https://x.com/threaduser/status/thread-main",
         thread: [
           {
             id: "thread-reply-1",
             text: "First reply in thread",
-            user: { screen_name: "threaduser", name: "Thread User" },
-            created_at: "2023-12-01T10:01:00Z",
-            favorite_count: 0,
-            retweet_count: 0,
-            reply_count: 0,
+            author: { userName: "threaduser", name: "Thread User" },
+            createdAt: "2023-12-01T10:01:00Z",
+            likes: 0,
+            retweets: 0,
+            replies: 0,
             url: "https://x.com/threaduser/status/thread-reply-1",
           },
         ],
@@ -354,11 +354,11 @@ describe("ApifyService", () => {
       const hashtagResponse: ApifyXResponse = {
         id: "hashtag-tweet",
         text: "Test with #hashtag1 and #hashtag2",
-        user: { screen_name: "hashuser", name: "Hash User" },
-        created_at: "2023-12-01T10:00:00Z",
-        favorite_count: 0,
-        retweet_count: 0,
-        reply_count: 0,
+        author: { userName: "hashuser", name: "Hash User" },
+        createdAt: "2023-12-01T10:00:00Z",
+        likes: 0,
+        retweets: 0,
+        replies: 0,
         url: "https://x.com/hashuser/status/hashtag-tweet",
         entities: {
           hashtags: [
@@ -388,11 +388,11 @@ describe("ApifyService", () => {
       const mentionResponse: ApifyXResponse = {
         id: "mention-tweet",
         text: "Hello @user1 and @user2",
-        user: { screen_name: "mentionuser", name: "Mention User" },
-        created_at: "2023-12-01T10:00:00Z",
-        favorite_count: 0,
-        retweet_count: 0,
-        reply_count: 0,
+        author: { userName: "mentionuser", name: "Mention User" },
+        createdAt: "2023-12-01T10:00:00Z",
+        likes: 0,
+        retweets: 0,
+        replies: 0,
         url: "https://x.com/mentionuser/status/mention-tweet",
         entities: {
           user_mentions: [
@@ -426,20 +426,20 @@ describe("ApifyService", () => {
       const quotedResponse: ApifyXResponse = {
         id: "main-quote",
         text: "Quoting this post",
-        user: { screen_name: "quoteuser", name: "Quote User" },
-        created_at: "2023-12-01T10:00:00Z",
-        favorite_count: 0,
-        retweet_count: 0,
-        reply_count: 0,
+        author: { userName: "quoteuser", name: "Quote User" },
+        createdAt: "2023-12-01T10:00:00Z",
+        likes: 0,
+        retweets: 0,
+        replies: 0,
         url: "https://x.com/quoteuser/status/main-quote",
         quotedStatus: {
           id: "quoted-original",
           text: "Original quoted post",
-          user: { screen_name: "originaluser", name: "Original User" },
-          created_at: "2023-12-01T09:00:00Z",
-          favorite_count: 5,
-          retweet_count: 2,
-          reply_count: 1,
+          author: { userName: "originaluser", name: "Original User" },
+          createdAt: "2023-12-01T09:00:00Z",
+          likes: 5,
+          retweets: 2,
+          replies: 1,
           url: "https://x.com/originaluser/status/quoted-original",
         },
       };
@@ -463,7 +463,7 @@ describe("ApifyService", () => {
     test("handles missing required fields gracefully", async () => {
       const incompleteResponse: ApifyXResponse = {
         // Missing ID and text
-        user: { screen_name: "incomplete", name: "Incomplete User" },
+        author: { userName: "incomplete", name: "Incomplete User" },
       };
 
       mockCall.mockResolvedValue({
