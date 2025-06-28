@@ -15,7 +15,10 @@
   },
   "dependencies": {
     "@karakeep/sdk": "workspace:*",
+    "@karakeep/shared": "workspace:^0.1.0",
     "@karakeep/trpc": "workspace:^0.1.0",
+    "apify-client": "^2.12.5",
+    "liteque": "^0.3.2",
     "superjson": "^2.2.1"
   },
   "devDependencies": {

@@ -171,10 +171,9 @@ describe("X.com Crawler Performance Tests", () => {
       // Enqueue multiple jobs rapidly
       const enqueuePromises = urls.map(url => 
         queues.LinkCrawlerQueue.enqueue({
-          url,
-          priority: "normal",
-          userId: "test-user",
-          listIds: [],
+          bookmarkId: `bookmark-${Date.now()}-${Math.random()}`,
+          runInference: true,
+          archiveFullPage: false,
         })
       );
 
@@ -182,7 +181,7 @@ describe("X.com Crawler Performance Tests", () => {
       const enqueueTime = Date.now() - startTime;
 
       // Check queue size
-      const queueSize = await queues.LinkCrawlerQueue.size();
+      const queueSize = await (queues.LinkCrawlerQueue as any).size();
       expect(queueSize).toBe(urls.length);
 
       const throughput = urls.length / (enqueueTime / 1000); // jobs per second
@@ -242,13 +241,15 @@ describe("X.com Crawler Performance Tests", () => {
       // Verify thread content was properly processed
       const processedBookmark = await client.GET(`/bookmarks/{bookmarkId}`, {
         params: {
-          path: { bookmarkId: bookmark.id },
+          path: { bookmarkId: bookmark!.id },
           query: { includeContent: true },
         },
       });
 
       expect(processedBookmark.data?.content.type).toBe("link");
-      expect(processedBookmark.data?.content.description.length).toBeGreaterThan(1000);
+      if (processedBookmark.data?.content.type === "link") {
+        expect(processedBookmark.data.content.description?.length || 0).toBeGreaterThan(1000);
+      }
     });
 
     it("should handle media-heavy content efficiently", async () => {
@@ -659,7 +660,7 @@ describe("X.com Crawler Performance Tests", () => {
           async () => {
             const { data } = await client.GET(`/bookmarks/{bookmarkId}`, {
               params: {
-                path: { bookmarkId: failureBookmark.id },
+                path: { bookmarkId: failureBookmark!.id },
                 query: { includeContent: true },
               },
             });
@@ -672,7 +673,7 @@ describe("X.com Crawler Performance Tests", () => {
           async () => {
             const { data } = await client.GET(`/bookmarks/{bookmarkId}`, {
               params: {
-                path: { bookmarkId: successBookmark.id },
+                path: { bookmarkId: successBookmark!.id },
                 query: { includeContent: true },
               },
             });
