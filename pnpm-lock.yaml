@@ -12,6 +12,10 @@ patchedDependencies:
 importers:
 
   .:
+    dependencies:
+      apify-client:
+        specifier: ^2.12.5
+        version: 2.12.5
     devDependencies:
       '@karakeep/prettier-config':
         specifier: workspace:^0.1.0
@@ -1100,7 +1104,7 @@ importers:
   packages/shared:
     dependencies:
       apify-client:
-        specifier: ^2.9.15
+        specifier: ^2.12.5
         version: 2.12.5
       glob:
         specifier: ^11.0.0

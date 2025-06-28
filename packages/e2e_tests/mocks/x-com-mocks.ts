@@ -3,7 +3,12 @@ import type { SqliteQueue } from "liteque";
 import type { Mock } from "vitest";
 import { expect, vi } from "vitest";
 
-import type { ZCrawlLinkRequest } from "@karakeep/shared/queues";
+import type {
+  ZCrawlLinkRequest,
+  ZOpenAIRequest,
+  ZSearchIndexingRequest,
+  ZTidyAssetsRequest,
+} from "@karakeep/shared/queues";
 import type {
   ApifyRunInfo,
   ApifyScrapingConfig,
@@ -12,6 +17,15 @@ import type {
 } from "@karakeep/shared/types/apify";
 
 import { X_COM_TEST_FIXTURES } from "../fixtures/x-com-responses";
+
+/**
+ * Union type for all queue job types in the system
+ */
+type QueueJobType =
+  | ZCrawlLinkRequest
+  | ZOpenAIRequest
+  | ZSearchIndexingRequest
+  | ZTidyAssetsRequest;
 
 /**
  * Comprehensive mock strategy implementation for X.com/Twitter Apify testing
@@ -65,7 +79,7 @@ class MockStateManager {
   private scenarios = new Map<string, MockScenarioConfig>();
   private assetConfigs = new Map<string, MockAssetConfig>();
   private callCounts = new Map<string, number>();
-  private queuedJobs = new Map<string, unknown[]>();
+  private queuedJobs = new Map<string, QueueJobType[]>();
 
   reset() {
     this.scenarios.clear();
@@ -99,13 +113,13 @@ class MockStateManager {
     return this.assetConfigs.get(url);
   }
 
-  addQueuedJob(queueName: string, job: unknown) {
+  addQueuedJob(queueName: string, job: QueueJobType) {
     const jobs = this.queuedJobs.get(queueName) || [];
     jobs.push(job);
     this.queuedJobs.set(queueName, jobs);
   }
 
-  getQueuedJobs(queueName: string): unknown[] {
+  getQueuedJobs(queueName: string): QueueJobType[] {
     return this.queuedJobs.get(queueName) || [];
   }
 
@@ -335,12 +349,12 @@ export function configureApifyServiceMock(
 /**
  * Create a mock queue instance
  */
-export function createMockQueue<T = unknown>(
+export function createMockQueue<T = QueueJobType>(
   queueName: string,
 ): SqliteQueue<T> {
   return {
     enqueue: vi.fn().mockImplementation(async (job: T) => {
-      mockState.addQueuedJob(queueName, job);
+      mockState.addQueuedJob(queueName, job as QueueJobType);
       return { id: `job_${Date.now()}`, status: "pending" };
     }),
     dequeue: vi.fn(),
@@ -612,11 +626,13 @@ export const testDataGenerators = {
   generateMalformedResponse(): Partial<ApifyXResponse> {
     const variants: Partial<ApifyXResponse>[] = [
       { id: "" }, // Empty ID
-      { text: null as unknown as string }, // Null text
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { text: null as any }, // Null text - intentionally malformed for testing
       { author: {} }, // Empty author
       { createdAt: "invalid-date" }, // Invalid date
       { likes: -1 }, // Negative metrics
-      { media: [null, undefined, ""] as unknown as ApifyXResponse["media"] }, // Invalid media
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { media: [null, undefined, ""] as any }, // Invalid media - intentionally malformed for testing
     ];
 
     return variants[Math.floor(Math.random() * variants.length)];
@@ -630,9 +646,9 @@ export const assertionHelpers = {
   /**
    * Assert that a job was enqueued with expected properties
    */
-  assertJobEnqueued(
-    queue: SqliteQueue<unknown>,
-    expectedJob: Partial<unknown>,
+  assertJobEnqueued<T extends QueueJobType>(
+    queue: SqliteQueue<T>,
+    expectedJob: Partial<T>,
   ) {
     expect(queue.enqueue).toHaveBeenCalled();
     const calls = (queue.enqueue as Mock).mock.calls;
@@ -810,7 +826,8 @@ export const performanceUtils = {
 
     return {
       wrapMock: (mockFn: Mock) => {
-        return mockFn.mockImplementation(async (...args: unknown[]) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return mockFn.mockImplementation(async (...args: any[]) => {
           const start = Date.now();
           try {
             const result = await mockFn.getMockImplementation()?.(...args);
@@ -849,7 +866,7 @@ export const integrationHelpers = {
    */
   createIntegrationScenario(options: {
     apifyResponses: ApifyXResponse[];
-    expectedQueueJobs: { queueName: string; job: unknown }[];
+    expectedQueueJobs: { queueName: string; job: QueueJobType }[];
     expectedAssetDownloads: string[];
     expectedExternalCalls: string[];
   }) {
@@ -862,7 +879,7 @@ export const integrationHelpers = {
 
     // Track expected calls
     const tracker = {
-      queueJobs: [] as unknown[],
+      queueJobs: [] as { queueName: string; job: QueueJobType }[],
       assetDownloads: [] as string[],
       externalCalls: [] as string[],
     };

@@ -1,6 +1,7 @@
-import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+
+import type { ApifyXResponse } from "../types/apify";
 import { ApifyService } from "./apifyService";
-import type { ApifyXResponse, ProcessedXContent } from "../types/apify";
 
 // Mock apify-client
 const mockCall = vi.fn();
@@ -65,7 +66,7 @@ describe("ApifyService", () => {
     });
 
     test("throws error without API key", () => {
-      // This test should be updated to use a different approach since 
+      // This test should be updated to use a different approach since
       // the config is already mocked at module level
       // We'll skip this test for now as it requires module-level remocking
       // which is complex in Vitest
@@ -107,14 +108,16 @@ describe("ApifyService", () => {
         id: "run-id-123",
         defaultDatasetId: "dataset-id-456",
       });
-      
+
       mockListItems.mockResolvedValue({
         items: [sampleApifyResponse],
       });
     });
 
     test("successfully scrapes valid X.com URL", async () => {
-      const result = await service.scrapeXUrl("https://x.com/testuser/status/1234567890");
+      const result = await service.scrapeXUrl(
+        "https://x.com/testuser/status/1234567890",
+      );
 
       expect(result).toBeDefined();
       expect(result).toMatchObject({
@@ -134,25 +137,38 @@ describe("ApifyService", () => {
 
     test("rejects invalid URLs", async () => {
       await expect(service.scrapeXUrl("https://example.com")).rejects.toThrow(
-        "Invalid X.com URL: https://example.com"
+        "Invalid X.com URL: https://example.com",
       );
     });
 
     test("handles empty response from Apify", async () => {
       mockListItems.mockResolvedValue({ items: [] });
 
-      const result = await service.scrapeXUrl("https://x.com/testuser/status/1234567890");
+      const result = await service.scrapeXUrl(
+        "https://x.com/testuser/status/1234567890",
+      );
       expect(result).toBeNull();
     });
 
     test("handles malformed response data", async () => {
       mockListItems.mockResolvedValue({
         items: [
-          { id: "valid-id-2", text: "Valid tweet", author: { userName: "test", name: "Test" }, createdAt: "2023-12-01T10:00:00Z", likes: 0, retweets: 0, replies: 0, url: "https://x.com/test/status/valid-id-2" }, // Valid
+          {
+            id: "valid-id-2",
+            text: "Valid tweet",
+            author: { userName: "test", name: "Test" },
+            createdAt: "2023-12-01T10:00:00Z",
+            likes: 0,
+            retweets: 0,
+            replies: 0,
+            url: "https://x.com/test/status/valid-id-2",
+          }, // Valid
         ],
       });
 
-      const result = await service.scrapeXUrl("https://x.com/testuser/status/1234567890");
+      const result = await service.scrapeXUrl(
+        "https://x.com/testuser/status/1234567890",
+      );
       expect(result).toBeDefined();
       expect(result!.content).toBe("Valid tweet");
     });
@@ -164,18 +180,22 @@ describe("ApifyService", () => {
           message: "Actor run failed due to timeout",
         },
       };
-      
+
       mockCall.mockRejectedValue(apiError);
 
-      await expect(service.scrapeXUrl("https://x.com/testuser/status/1234567890"))
-        .rejects.toThrow("Apify scraping failed: Actor run failed due to timeout");
+      await expect(
+        service.scrapeXUrl("https://x.com/testuser/status/1234567890"),
+      ).rejects.toThrow(
+        "Apify scraping failed: Actor run failed due to timeout",
+      );
     });
 
     test("handles network failures", async () => {
       mockCall.mockRejectedValue(new Error("Network error"));
 
-      await expect(service.scrapeXUrl("https://x.com/testuser/status/1234567890"))
-        .rejects.toThrow("Network error");
+      await expect(
+        service.scrapeXUrl("https://x.com/testuser/status/1234567890"),
+      ).rejects.toThrow("Network error");
     });
 
     test("handles responses with different field names", async () => {
@@ -199,7 +219,9 @@ describe("ApifyService", () => {
         items: [alternativeResponse],
       });
 
-      const result = await service.scrapeXUrl("https://x.com/altuser/status/9876543210");
+      const result = await service.scrapeXUrl(
+        "https://x.com/altuser/status/9876543210",
+      );
       expect(result).toBeDefined();
       expect(result!.content).toBe("Alternative format tweet");
     });
@@ -210,7 +232,10 @@ describe("ApifyService", () => {
       const responseWithPhotos: ApifyXResponse = {
         id: "photo-tweet",
         text: "Tweet with photos",
-        photos: ["https://example.com/photo1.jpg", "https://example.com/photo2.jpg"],
+        photos: [
+          "https://example.com/photo1.jpg",
+          "https://example.com/photo2.jpg",
+        ],
         author: { userName: "photouser", name: "Photo User" },
         createdAt: "2023-12-01T10:00:00Z",
         likes: 0,
@@ -223,12 +248,14 @@ describe("ApifyService", () => {
         id: "run-id",
         defaultDatasetId: "dataset-id",
       });
-      
+
       mockListItems.mockResolvedValue({
         items: [responseWithPhotos],
       });
 
-      const result = await service.scrapeXUrl("https://x.com/photouser/status/photo-tweet");
+      const result = await service.scrapeXUrl(
+        "https://x.com/photouser/status/photo-tweet",
+      );
       expect(result!.media).toHaveLength(2);
       expect(result!.media![0]).toMatchObject({
         type: "image",
@@ -253,12 +280,14 @@ describe("ApifyService", () => {
         id: "run-id",
         defaultDatasetId: "dataset-id",
       });
-      
+
       mockListItems.mockResolvedValue({
         items: [responseWithVideos],
       });
 
-      const result = await service.scrapeXUrl("https://x.com/videouser/status/video-tweet");
+      const result = await service.scrapeXUrl(
+        "https://x.com/videouser/status/video-tweet",
+      );
       expect(result!.media).toHaveLength(1);
       expect(result!.media![0]).toMatchObject({
         type: "video",
@@ -293,12 +322,14 @@ describe("ApifyService", () => {
         id: "run-id",
         defaultDatasetId: "dataset-id",
       });
-      
+
       mockListItems.mockResolvedValue({
         items: [responseWithExtendedEntities],
       });
 
-      const result = await service.scrapeXUrl("https://x.com/extuser/status/extended-tweet");
+      const result = await service.scrapeXUrl(
+        "https://x.com/extuser/status/extended-tweet",
+      );
       expect(result!.media).toHaveLength(1);
       expect(result!.media![0]).toMatchObject({
         type: "image",
@@ -338,12 +369,14 @@ describe("ApifyService", () => {
         id: "run-id",
         defaultDatasetId: "dataset-id",
       });
-      
+
       mockListItems.mockResolvedValue({
         items: [threadResponse],
       });
 
-      const result = await service.scrapeXUrl("https://x.com/threaduser/status/thread-main");
+      const result = await service.scrapeXUrl(
+        "https://x.com/threaduser/status/thread-main",
+      );
       expect(result!.thread).toHaveLength(1);
       expect(result!.thread![0].content).toBe("First reply in thread");
     });
@@ -373,12 +406,14 @@ describe("ApifyService", () => {
         id: "run-id",
         defaultDatasetId: "dataset-id",
       });
-      
+
       mockListItems.mockResolvedValue({
         items: [hashtagResponse],
       });
 
-      const result = await service.scrapeXUrl("https://x.com/hashuser/status/hashtag-tweet");
+      const result = await service.scrapeXUrl(
+        "https://x.com/hashuser/status/hashtag-tweet",
+      );
       expect(result!.hashtags).toContain("#hashtag1");
       expect(result!.hashtags).toContain("#hashtag2");
       expect(result!.hashtags).toContain("#hashtag3");
@@ -407,12 +442,14 @@ describe("ApifyService", () => {
         id: "run-id",
         defaultDatasetId: "dataset-id",
       });
-      
+
       mockListItems.mockResolvedValue({
         items: [mentionResponse],
       });
 
-      const result = await service.scrapeXUrl("https://x.com/mentionuser/status/mention-tweet");
+      const result = await service.scrapeXUrl(
+        "https://x.com/mentionuser/status/mention-tweet",
+      );
       expect(result!.mentions).toContain("@user1");
       expect(result!.mentions).toContain("@user2");
       expect(result!.mentions).toContain("@user3");
@@ -448,12 +485,14 @@ describe("ApifyService", () => {
         id: "run-id",
         defaultDatasetId: "dataset-id",
       });
-      
+
       mockListItems.mockResolvedValue({
         items: [quotedResponse],
       });
 
-      const result = await service.scrapeXUrl("https://x.com/quoteuser/status/main-quote");
+      const result = await service.scrapeXUrl(
+        "https://x.com/quoteuser/status/main-quote",
+      );
       expect(result).toBeDefined();
       expect(result!.content).toBe("Quoting this post");
     });
@@ -470,12 +509,14 @@ describe("ApifyService", () => {
         id: "run-id",
         defaultDatasetId: "dataset-id",
       });
-      
+
       mockListItems.mockResolvedValue({
         items: [incompleteResponse],
       });
 
-      const result = await service.scrapeXUrl("https://x.com/incomplete/status/123");
+      const result = await service.scrapeXUrl(
+        "https://x.com/incomplete/status/123",
+      );
       expect(result).toBeNull(); // Should return null for incomplete items
     });
 
@@ -486,11 +527,12 @@ describe("ApifyService", () => {
           message: "Rate limit exceeded",
         },
       };
-      
+
       mockCall.mockRejectedValue(rateLimitError);
 
-      await expect(service.scrapeXUrl("https://x.com/test/status/123"))
-        .rejects.toThrow("Apify scraping failed: Rate limit exceeded");
+      await expect(
+        service.scrapeXUrl("https://x.com/test/status/123"),
+      ).rejects.toThrow("Apify scraping failed: Rate limit exceeded");
     });
 
     test("handles invalid actor ID", async () => {
@@ -500,11 +542,12 @@ describe("ApifyService", () => {
           message: "Actor not found",
         },
       };
-      
+
       mockCall.mockRejectedValue(invalidActorError);
 
-      await expect(service.scrapeXUrl("https://x.com/test/status/123"))
-        .rejects.toThrow("Apify scraping failed: Actor not found");
+      await expect(
+        service.scrapeXUrl("https://x.com/test/status/123"),
+      ).rejects.toThrow("Apify scraping failed: Actor not found");
     });
   });
 
@@ -533,7 +576,7 @@ describe("ApifyService", () => {
           id: "run-id",
           defaultDatasetId: "dataset-id",
         });
-        
+
         mockListItems.mockResolvedValue({ items: [] });
 
         await expect(service.scrapeXUrl(url)).resolves.not.toThrow();

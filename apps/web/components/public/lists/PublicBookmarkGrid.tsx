@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import BookmarkFormattedCreatedAt from "@/components/dashboard/bookmarks/BookmarkFormattedCreatedAt";
 import { BookmarkMarkdownComponent } from "@/components/dashboard/bookmarks/BookmarkMarkdownComponent";
@@ -44,12 +45,14 @@ function BookmarkCard({ bookmark }: { bookmark: ZPublicBookmark }) {
         return (
           <div className="space-y-2">
             {bookmark.bannerImageUrl && (
-              <div className="aspect-video w-full overflow-hidden rounded bg-gray-100">
+              <div className="relative aspect-video w-full overflow-hidden rounded bg-gray-100">
                 <Link href={bookmark.content.url} target="_blank">
-                  <img
+                  <Image
                     src={bookmark.bannerImageUrl}
                     alt={bookmark.title ?? "Link preview"}
                     className="h-full w-full object-cover"
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   />
                 </Link>
               </div>
@@ -106,12 +109,14 @@ function BookmarkCard({ bookmark }: { bookmark: ZPublicBookmark }) {
         return (
           <div className="space-y-2">
             {bookmark.bannerImageUrl ? (
-              <div className="aspect-video w-full overflow-hidden rounded bg-gray-100">
+              <div className="relative aspect-video w-full overflow-hidden rounded bg-gray-100">
                 <Link href={bookmark.content.assetUrl}>
-                  <img
+                  <Image
                     src={bookmark.bannerImageUrl}
                     alt={bookmark.title ?? "Asset preview"}
                     className="h-full w-full object-cover"
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   />
                 </Link>
               </div>

@@ -110,7 +110,7 @@ describe("X.com (Twitter) Crawler Tests", () => {
 
       // Check for media assets
       const imageAssets = bookmark.assets.filter(
-        (a) => a.assetType === "bookmarkAsset"
+        (a) => a.assetType === "bookmarkAsset",
       );
       expect(imageAssets.length).toBeGreaterThan(0);
 
@@ -461,7 +461,7 @@ describe("X.com (Twitter) Crawler Tests", () => {
 
       // Should have stored the author's profile picture
       const profilePicAsset = bookmark.assets.find(
-        (a) => a.assetType === "bookmarkAsset"
+        (a) => a.assetType === "bookmarkAsset",
       );
       expect(profilePicAsset).toBeDefined();
     });
@@ -494,7 +494,7 @@ describe("X.com (Twitter) Crawler Tests", () => {
 
       // Should have multiple image assets
       const mediaAssets = bookmark.assets.filter(
-        (a) => a.assetType === "bookmarkAsset"
+        (a) => a.assetType === "bookmarkAsset",
       );
       expect(mediaAssets.length).toBeGreaterThan(0); // Should have image assets
     });
@@ -526,7 +526,7 @@ describe("X.com (Twitter) Crawler Tests", () => {
 
       // Should have GIF asset
       const gifAsset = bookmark.assets.find(
-        (a) => a.assetType === "bookmarkAsset"
+        (a) => a.assetType === "bookmarkAsset",
       );
       expect(gifAsset).toBeDefined();
     });

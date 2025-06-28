@@ -9,13 +9,15 @@ export function isXComUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname.toLowerCase();
-    
-    return hostname === 'x.com' || 
-           hostname === 'twitter.com' ||
-           hostname === 'www.x.com' ||
-           hostname === 'www.twitter.com' ||
-           hostname === 'mobile.x.com' ||
-           hostname === 'mobile.twitter.com';
+
+    return (
+      hostname === "x.com" ||
+      hostname === "twitter.com" ||
+      hostname === "www.x.com" ||
+      hostname === "www.twitter.com" ||
+      hostname === "mobile.x.com" ||
+      hostname === "mobile.twitter.com"
+    );
   } catch {
     return false;
   }
@@ -27,16 +29,16 @@ export function isXComUrl(url: string): boolean {
 export function extractTweetId(url: string): string | null {
   try {
     const urlObj = new URL(url);
-    const pathParts = urlObj.pathname.split('/');
-    
+    const pathParts = urlObj.pathname.split("/");
+
     // Look for status path: /username/status/tweetId
-    const statusIndex = pathParts.indexOf('status');
+    const statusIndex = pathParts.indexOf("status");
     if (statusIndex !== -1 && statusIndex + 1 < pathParts.length) {
       const tweetId = pathParts[statusIndex + 1];
       // Remove any query parameters
-      return tweetId.split('?')[0];
+      return tweetId.split("?")[0];
     }
-    
+
     return null;
   } catch {
     return null;
@@ -49,19 +51,29 @@ export function extractTweetId(url: string): string | null {
 export function extractUsername(url: string): string | null {
   try {
     const urlObj = new URL(url);
-    const pathParts = urlObj.pathname.split('/').filter(part => part.length > 0);
-    
+    const pathParts = urlObj.pathname
+      .split("/")
+      .filter((part) => part.length > 0);
+
     // First path segment should be username (unless it's a special path)
     if (pathParts.length > 0) {
       const firstPart = pathParts[0];
-      
+
       // Skip special paths
-      const specialPaths = ['i', 'home', 'explore', 'notifications', 'messages', 'bookmarks', 'settings'];
+      const specialPaths = [
+        "i",
+        "home",
+        "explore",
+        "notifications",
+        "messages",
+        "bookmarks",
+        "settings",
+      ];
       if (!specialPaths.includes(firstPart)) {
         return firstPart;
       }
     }
-    
+
     return null;
   } catch {
     return null;
@@ -74,21 +86,21 @@ export function extractUsername(url: string): string | null {
 export function isThreadUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
-    
+
     // Check for conversation ID in query params
     const searchParams = urlObj.searchParams;
-    if (searchParams.has('s')) {
+    if (searchParams.has("s")) {
       // Thread indicator in URL
       return true;
     }
-    
+
     // Check for thread indicators in hash
-    if (urlObj.hash.includes('thread')) {
+    if (urlObj.hash.includes("thread")) {
       return true;
     }
-    
+
     // For now, assume any status URL might be part of a thread
-    return urlObj.pathname.includes('/status/');
+    return urlObj.pathname.includes("/status/");
   } catch {
     return false;
   }
@@ -100,28 +112,36 @@ export function isThreadUrl(url: string): boolean {
 export function normalizeXComUrl(url: string): string {
   try {
     const urlObj = new URL(url);
-    
+
     // Convert twitter.com to x.com
-    if (urlObj.hostname.includes('twitter.com')) {
-      urlObj.hostname = urlObj.hostname.replace('twitter.com', 'x.com');
+    if (urlObj.hostname.includes("twitter.com")) {
+      urlObj.hostname = urlObj.hostname.replace("twitter.com", "x.com");
     }
-    
+
     // Remove mobile prefix
-    if (urlObj.hostname.startsWith('mobile.')) {
-      urlObj.hostname = urlObj.hostname.replace('mobile.', '');
+    if (urlObj.hostname.startsWith("mobile.")) {
+      urlObj.hostname = urlObj.hostname.replace("mobile.", "");
     }
-    
+
     // Remove common tracking parameters
-    const trackingParams = ['s', 't', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
-    trackingParams.forEach(param => {
+    const trackingParams = [
+      "s",
+      "t",
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_content",
+      "utm_term",
+    ];
+    trackingParams.forEach((param) => {
       urlObj.searchParams.delete(param);
     });
-    
+
     // Remove hash if it's just tracking
     if (urlObj.hash.match(/^#[a-zA-Z0-9_-]*$/)) {
-      urlObj.hash = '';
+      urlObj.hash = "";
     }
-    
+
     return urlObj.toString();
   } catch {
     return url; // Return original if parsing fails
@@ -134,7 +154,7 @@ export function normalizeXComUrl(url: string): string {
 export function isTweetUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
-    return urlObj.pathname.includes('/status/');
+    return urlObj.pathname.includes("/status/");
   } catch {
     return false;
   }
@@ -144,15 +164,15 @@ export function isTweetUrl(url: string): boolean {
  * Generate a descriptive title for X.com content
  */
 export function generateXContentTitle(
-  username: string, 
-  displayName?: string, 
+  username: string,
+  displayName?: string,
   isThread?: boolean,
-  tweetId?: string
+  tweetId?: string,
 ): string {
   const name = displayName || username;
-  const threadText = isThread ? ' (Thread)' : '';
-  const idText = tweetId ? ` - ${tweetId}` : '';
-  
+  const threadText = isThread ? " (Thread)" : "";
+  const idText = tweetId ? ` - ${tweetId}` : "";
+
   return `${name} (@${username})${threadText}${idText}`;
 }
 
@@ -179,19 +199,19 @@ export function extractMentions(text: string): string[] {
  */
 export function cleanTweetText(text: string): string {
   let cleaned = text;
-  
+
   // Remove t.co links (they're usually redundant with media/quote tweets)
-  cleaned = cleaned.replace(/https:\/\/t\.co\/[\w]+/g, '').trim();
-  
+  cleaned = cleaned.replace(/https:\/\/t\.co\/[\w]+/g, "").trim();
+
   // Fix common encoding issues
-  cleaned = cleaned.replace(/&amp;/g, '&');
-  cleaned = cleaned.replace(/&lt;/g, '<');
-  cleaned = cleaned.replace(/&gt;/g, '>');
+  cleaned = cleaned.replace(/&amp;/g, "&");
+  cleaned = cleaned.replace(/&lt;/g, "<");
+  cleaned = cleaned.replace(/&gt;/g, ">");
   cleaned = cleaned.replace(/&quot;/g, '"');
   cleaned = cleaned.replace(/&#39;/g, "'");
-  
+
   // Remove extra whitespace
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
-  
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+
   return cleaned;
 }

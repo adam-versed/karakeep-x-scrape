@@ -90,6 +90,12 @@ pnpm clean:workspaces       # Clean all workspace build artifacts
 - **Type Safety**: Strict TypeScript with full-stack type safety via tRPC
 - **Database**: Code-first schema approach with Drizzle ORM
 
+### TypeScript Guidelines
+- **NEVER use `any` type**: The linter will fail on `any` types. Always use proper types, `unknown`, or type assertions
+- Use specific types for all variables, parameters, and return values
+- Prefer interfaces over type aliases for object shapes
+- Use generic types when appropriate for reusable components
+
 ## Key Architectural Patterns
 
 ### Database Layer

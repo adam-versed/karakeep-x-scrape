@@ -1,14 +1,13 @@
 import { ApifyClient } from "apify-client";
+
+import type {
+  ApifyScrapingConfig,
+  ApifyXResponse,
+  ProcessedXContent,
+  ScrapedPost,
+} from "../types/apify.js";
 import serverConfig from "../config.js";
 import logger from "../logger.js";
-import type {
-  ApifyXResponse,
-  ApifyRunInfo,
-  ApifyErrorResponse,
-  ScrapedPost,
-  ProcessedXContent,
-  ApifyScrapingConfig,
-} from "../types/apify.js";
 import { isApifyError } from "../types/apify.js";
 
 // Use the default logger for now
@@ -51,7 +50,7 @@ export class ApifyService {
       };
 
       const results = await this.runApifyActor(config);
-      
+
       if (results.length === 0) {
         logger.warn(`No results found for URL: ${url}`);
         return null;
@@ -60,7 +59,7 @@ export class ApifyService {
       // Process the main post (first result)
       const processed = this.transformToKarakeepFormat(results[0], results);
       logger.info(`Successfully scraped URL: ${url}`);
-      
+
       return processed;
     } catch (error) {
       logger.error(`Failed to scrape URL ${url}:`, error);
@@ -71,14 +70,16 @@ export class ApifyService {
   /**
    * Scrape multiple URLs at once
    */
-  async scrapeMultipleUrls(urls: string[]): Promise<(ProcessedXContent | null)[]> {
+  async scrapeMultipleUrls(
+    urls: string[],
+  ): Promise<(ProcessedXContent | null)[]> {
     const results: (ProcessedXContent | null)[] = [];
-    
+
     for (const url of urls) {
       try {
         const result = await this.scrapeXUrl(url);
         results.push(result);
-        
+
         // Rate limiting between requests
         await this.delay(2000);
       } catch (error) {
@@ -86,17 +87,19 @@ export class ApifyService {
         results.push(null);
       }
     }
-    
+
     return results;
   }
 
   /**
    * Run the Apify actor with the given configuration
    */
-  private async runApifyActor(config: ApifyScrapingConfig): Promise<ScrapedPost[]> {
+  private async runApifyActor(
+    config: ApifyScrapingConfig,
+  ): Promise<ScrapedPost[]> {
     try {
       logger.debug("Running Apify actor with config:", config);
-      
+
       // Run the Actor and wait for it to finish
       const run = await this.client.actor(this.actorId).call(config, {
         timeout: 300, // 5 minutes
@@ -115,10 +118,12 @@ export class ApifyService {
       return this.normalizeApifyResults(items as ApifyXResponse[]);
     } catch (error) {
       if (isApifyError(error)) {
-        logger.error(`Apify API error: ${error.error.type} - ${error.error.message}`);
+        logger.error(
+          `Apify API error: ${error.error.type} - ${error.error.message}`,
+        );
         throw new Error(`Apify scraping failed: ${error.error.message}`);
       }
-      
+
       logger.error("Apify actor run failed:", error);
       throw error;
     }
@@ -153,20 +158,18 @@ export class ApifyService {
 
     // Extract author information
     const author = {
-      username: item.author?.userName || 
-                item.author?.username || 
-                item.username || 
-                item.userName || "",
-      name: item.author?.name || 
-            item.author?.displayName || 
-            item.displayName || "",
-      profilePicture: item.author?.profileImageUrl || 
-                     item.author?.profilePicture,
-      verified: item.author?.isVerified || 
-               item.author?.verified || 
-               false,
-      followers: item.author?.followers || 
-                item.author?.followersCount,
+      username:
+        item.author?.userName ||
+        item.author?.username ||
+        item.username ||
+        item.userName ||
+        "",
+      name:
+        item.author?.name || item.author?.displayName || item.displayName || "",
+      profilePicture:
+        item.author?.profileImageUrl || item.author?.profilePicture,
+      verified: item.author?.isVerified || item.author?.verified || false,
+      followers: item.author?.followers || item.author?.followersCount,
     };
 
     // Extract engagement metrics
@@ -191,14 +194,20 @@ export class ApifyService {
     const mentions = this.extractMentions(item);
 
     // Handle thread
-    const isThread = Boolean(item.isThread || (item.thread && item.thread.length > 0));
-    const threadPosts = item.thread ? 
-      item.thread.map(t => this.normalizeApifyItem(t)).filter((p): p is ScrapedPost => p !== null) : 
-      undefined;
+    const isThread = Boolean(
+      item.isThread || (item.thread && item.thread.length > 0),
+    );
+    const threadPosts = item.thread
+      ? item.thread
+          .map((t) => this.normalizeApifyItem(t))
+          .filter((p): p is ScrapedPost => p !== null)
+      : undefined;
 
     // Handle quoted post
     const quotedItem = item.quotedStatus || item.quotedTweet;
-    const quotedPost = quotedItem ? this.normalizeApifyItem(quotedItem) || undefined : undefined;
+    const quotedPost = quotedItem
+      ? this.normalizeApifyItem(quotedItem) || undefined
+      : undefined;
 
     return {
       id,
@@ -219,15 +228,15 @@ export class ApifyService {
   /**
    * Extract media from Apify response
    */
-  private extractMedia(item: ApifyXResponse): ScrapedPost['media'] {
-    const media: NonNullable<ScrapedPost['media']> = [];
+  private extractMedia(item: ApifyXResponse): ScrapedPost["media"] {
+    const media: NonNullable<ScrapedPost["media"]> = [];
 
     // Handle photos/images
     const photos = item.photos || item.images || [];
-    photos.forEach(url => {
-      if (typeof url === 'string') {
+    photos.forEach((url) => {
+      if (typeof url === "string") {
         media.push({
-          type: 'photo',
+          type: "photo",
           url,
         });
       }
@@ -235,10 +244,10 @@ export class ApifyService {
 
     // Handle videos
     const videos = item.videos || [];
-    videos.forEach(url => {
-      if (typeof url === 'string') {
+    videos.forEach((url) => {
+      if (typeof url === "string") {
         media.push({
-          type: 'video',
+          type: "video",
           url,
         });
       }
@@ -246,22 +255,27 @@ export class ApifyService {
 
     // Handle extended entities (Twitter API format)
     if (item.extendedEntities?.media) {
-      item.extendedEntities.media.forEach(mediaItem => {
+      item.extendedEntities.media.forEach((mediaItem) => {
         const url = mediaItem.media_url_https || mediaItem.media_url;
         if (!url) return;
 
-        const type = mediaItem.type === 'video' ? 'video' : 
-                    mediaItem.type === 'animated_gif' ? 'gif' : 'photo';
+        const type =
+          mediaItem.type === "video"
+            ? "video"
+            : mediaItem.type === "animated_gif"
+              ? "gif"
+              : "photo";
 
-        const mediaEntry: NonNullable<ScrapedPost['media']>[0] = {
+        const mediaEntry: NonNullable<ScrapedPost["media"]>[0] = {
           type,
           url,
         };
 
         // Add video metadata if available
-        if (type === 'video' && mediaItem.video_info) {
-          mediaEntry.duration = mediaItem.video_info.duration_millis ? 
-            Math.round(mediaItem.video_info.duration_millis / 1000) : undefined;
+        if (type === "video" && mediaItem.video_info) {
+          mediaEntry.duration = mediaItem.video_info.duration_millis
+            ? Math.round(mediaItem.video_info.duration_millis / 1000)
+            : undefined;
         }
 
         // Add dimensions if available
@@ -290,7 +304,7 @@ export class ApifyService {
 
     // From entities
     if (item.entities?.hashtags) {
-      item.entities.hashtags.forEach(tag => {
+      item.entities.hashtags.forEach((tag) => {
         if (tag.text) {
           hashtags.push(`#${tag.text}`);
         }
@@ -316,7 +330,7 @@ export class ApifyService {
 
     // From entities
     if (item.entities?.user_mentions) {
-      item.entities.user_mentions.forEach(mention => {
+      item.entities.user_mentions.forEach((mention) => {
         if (mention.screen_name) {
           mentions.push(`@${mention.screen_name}`);
         }
@@ -337,13 +351,16 @@ export class ApifyService {
   /**
    * Transform ScrapedPost to Karakeep's ProcessedXContent format
    */
-  private transformToKarakeepFormat(post: ScrapedPost, allPosts: ScrapedPost[]): ProcessedXContent {
+  private transformToKarakeepFormat(
+    post: ScrapedPost,
+    allPosts: ScrapedPost[],
+  ): ProcessedXContent {
     // Create HTML content from text with basic formatting
     const htmlContent = this.createHtmlContent(post);
 
     // Transform media to Karakeep format
-    const media = post.media?.map(m => ({
-      type: m.type === 'photo' ? 'image' as const : 'video' as const,
+    const media = post.media?.map((m) => ({
+      type: m.type === "photo" ? ("image" as const) : ("video" as const),
       url: m.url,
       thumbnailUrl: m.thumbnailUrl,
       width: m.width,
@@ -352,9 +369,12 @@ export class ApifyService {
     }));
 
     // Handle thread content
-    const thread = post.isThread && post.threadPosts ? 
-      post.threadPosts.map(p => this.transformToKarakeepFormat(p, allPosts)) : 
-      undefined;
+    const thread =
+      post.isThread && post.threadPosts
+        ? post.threadPosts.map((p) =>
+            this.transformToKarakeepFormat(p, allPosts),
+          )
+        : undefined;
 
     return {
       title: `${post.author.name} (@${post.author.username})`,
@@ -379,16 +399,19 @@ export class ApifyService {
     let html = post.text;
 
     // Convert URLs to links
-    html = html.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
-    
+    html = html.replace(
+      /(https?:\/\/[^\s]+)/g,
+      '<a href="$1" target="_blank">$1</a>',
+    );
+
     // Convert hashtags to spans with class
     html = html.replace(/#(\w+)/g, '<span class="hashtag">#$1</span>');
-    
+
     // Convert mentions to spans with class
     html = html.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
-    
+
     // Convert line breaks
-    html = html.replace(/\n/g, '<br>');
+    html = html.replace(/\n/g, "<br>");
 
     return `<div class="x-post">${html}</div>`;
   }
@@ -399,10 +422,12 @@ export class ApifyService {
   private isXUrl(url: string): boolean {
     try {
       const urlObj = new URL(url);
-      return urlObj.hostname === 'x.com' || 
-             urlObj.hostname === 'twitter.com' ||
-             urlObj.hostname === 'www.x.com' ||
-             urlObj.hostname === 'www.twitter.com';
+      return (
+        urlObj.hostname === "x.com" ||
+        urlObj.hostname === "twitter.com" ||
+        urlObj.hostname === "www.x.com" ||
+        urlObj.hostname === "www.twitter.com"
+      );
     } catch {
       return false;
     }
@@ -412,15 +437,17 @@ export class ApifyService {
    * Simple delay utility for rate limiting
    */
   private async delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
    * Check if Apify integration is enabled and configured
    */
   static isEnabled(): boolean {
-    return serverConfig.scraping.apify.enabled && 
-           Boolean(serverConfig.scraping.apify.apiKey);
+    return (
+      serverConfig.scraping.apify.enabled &&
+      Boolean(serverConfig.scraping.apify.apiKey)
+    );
   }
 
   /**

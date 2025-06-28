@@ -1,5 +1,9 @@
-import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+
 import type { ProcessedXContent } from "@karakeep/shared/types/apify";
+import { ApifyService } from "@karakeep/shared/services/apifyService";
+// Import the functions we want to test after mocking
+import { isXComUrl } from "@karakeep/shared/utils/xcom";
 
 // Mock all external dependencies
 vi.mock("@karakeep/shared/utils/xcom", () => ({
@@ -78,23 +82,19 @@ vi.mock("workerUtils", () => ({
 }));
 
 vi.mock("utils", () => ({
-  withTimeout: vi.fn((fn, timeout) => fn),
+  withTimeout: vi.fn((fn, _timeout) => fn),
 }));
 
-// Import the functions we want to test after mocking
-import { isXComUrl } from "@karakeep/shared/utils/xcom";
-import { ApifyService } from "@karakeep/shared/services/apifyService";
-
 describe("Crawler Worker X.com Integration", () => {
-  let mockJob: any;
+  let _mockJob: unknown;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Add static method to mocked ApifyService
     ApifyService.isEnabled = mockIsEnabled;
-    
-    mockJob = {
+
+    _mockJob = {
       id: "test-job-123",
       abortSignal: new AbortController().signal,
     };
@@ -107,14 +107,14 @@ describe("Crawler Worker X.com Integration", () => {
   describe("X.com URL detection and routing", () => {
     test("identifies X.com URLs correctly", () => {
       vi.mocked(isXComUrl).mockReturnValue(true);
-      
+
       const testUrls = [
         "https://x.com/user/status/123",
         "https://twitter.com/user/status/456",
         "https://mobile.x.com/user/status/789",
       ];
 
-      testUrls.forEach(url => {
+      testUrls.forEach((url) => {
         isXComUrl(url);
         expect(isXComUrl).toHaveBeenCalledWith(url);
       });
@@ -122,14 +122,14 @@ describe("Crawler Worker X.com Integration", () => {
 
     test("rejects non-X.com URLs", () => {
       vi.mocked(isXComUrl).mockReturnValue(false);
-      
+
       const testUrls = [
         "https://facebook.com/post/123",
         "https://linkedin.com/posts/456",
         "https://example.com",
       ];
 
-      testUrls.forEach(url => {
+      testUrls.forEach((url) => {
         const result = isXComUrl(url);
         expect(result).toBe(false);
       });
@@ -139,17 +139,17 @@ describe("Crawler Worker X.com Integration", () => {
   describe("Apify service integration", () => {
     test("creates ApifyService instance when needed", () => {
       mockIsEnabled.mockReturnValue(true);
-      
+
       new ApifyService();
-      
+
       expect(ApifyService).toHaveBeenCalled();
     });
 
     test("checks if Apify is enabled before using", () => {
       mockIsEnabled.mockReturnValue(false);
-      
+
       const enabled = ApifyService.isEnabled();
-      
+
       expect(enabled).toBe(false);
       expect(mockIsEnabled).toHaveBeenCalled();
     });
@@ -185,10 +185,14 @@ describe("Crawler Worker X.com Integration", () => {
       mockScrapeXUrl.mockResolvedValue(mockApifyResult);
 
       const service = new ApifyService();
-      const result = await service.scrapeXUrl("https://x.com/testuser/status/123");
+      const result = await service.scrapeXUrl(
+        "https://x.com/testuser/status/123",
+      );
 
       expect(result).toEqual(mockApifyResult);
-      expect(mockScrapeXUrl).toHaveBeenCalledWith("https://x.com/testuser/status/123");
+      expect(mockScrapeXUrl).toHaveBeenCalledWith(
+        "https://x.com/testuser/status/123",
+      );
     });
 
     test("handles Apify service unavailable", async () => {
@@ -203,8 +207,9 @@ describe("Crawler Worker X.com Integration", () => {
       mockScrapeXUrl.mockRejectedValue(new Error("Apify API error"));
 
       const service = new ApifyService();
-      await expect(service.scrapeXUrl("https://x.com/user/status/123"))
-        .rejects.toThrow("Apify API error");
+      await expect(
+        service.scrapeXUrl("https://x.com/user/status/123"),
+      ).rejects.toThrow("Apify API error");
     });
 
     test("handles empty Apify results", async () => {
@@ -395,8 +400,9 @@ describe("Crawler Worker X.com Integration", () => {
       mockScrapeXUrl.mockRejectedValue(new Error("Network timeout"));
 
       const service = new ApifyService();
-      await expect(service.scrapeXUrl("https://x.com/user/status/123"))
-        .rejects.toThrow("Network timeout");
+      await expect(
+        service.scrapeXUrl("https://x.com/user/status/123"),
+      ).rejects.toThrow("Network timeout");
     });
   });
 
@@ -469,10 +475,10 @@ describe("Crawler Worker X.com Integration", () => {
         { enabled: false, hasApiKey: false },
       ];
 
-      configs.forEach(config => {
+      configs.forEach((config) => {
         const isConfigValid = config.enabled && config.hasApiKey;
         const shouldUseApify = isConfigValid;
-        
+
         expect(typeof shouldUseApify).toBe("boolean");
       });
     });
@@ -482,7 +488,8 @@ describe("Crawler Worker X.com Integration", () => {
     test("handles timeout scenarios", async () => {
       // Test that timeout scenarios are handled gracefully
       // The actual implementation would use withTimeout wrapper
-      const slowOperation = () => new Promise(resolve => setTimeout(resolve, 100));
+      const slowOperation = () =>
+        new Promise((resolve) => setTimeout(resolve, 100));
       const timeoutMs = 50;
 
       // Simulate timeout behavior
@@ -490,7 +497,9 @@ describe("Crawler Worker X.com Integration", () => {
       try {
         await Promise.race([
           slowOperation(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout")), timeoutMs),
+          ),
         ]);
       } catch (error) {
         const elapsed = Date.now() - start;

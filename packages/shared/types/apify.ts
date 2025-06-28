@@ -22,14 +22,14 @@ export interface ScrapedPost {
     replies: number;
     views?: number;
   };
-  media?: Array<{
-    type: 'photo' | 'video' | 'gif';
+  media?: {
+    type: "photo" | "video" | "gif";
     url: string;
     thumbnailUrl?: string;
     duration?: number; // for videos, in seconds
     width?: number;
     height?: number;
-  }>;
+  }[];
   isThread?: boolean;
   threadPosts?: ScrapedPost[];
   quotedPost?: ScrapedPost;
@@ -46,11 +46,11 @@ export interface ApifyXResponse {
   // ID fields (different actors use different field names)
   id?: string;
   tweetId?: string;
-  
+
   // Text content
   text?: string;
   fullText?: string;
-  
+
   // Author information (different structures)
   author?: {
     userName?: string;
@@ -68,7 +68,7 @@ export interface ApifyXResponse {
   username?: string;
   displayName?: string;
   userName?: string;
-  
+
   // Engagement metrics (various naming conventions)
   likes?: number;
   favoriteCount?: number;
@@ -79,72 +79,73 @@ export interface ApifyXResponse {
   replyCount?: number;
   viewCount?: number;
   views?: number;
-  
+
   // Media arrays
   photos?: string[];
   images?: string[];
   videos?: string[];
-  media?: Array<string | MediaItem>;
-  
+  media?: (string | MediaItem)[];
+
   // Extended entities (Twitter API format)
   extendedEntities?: {
-    media?: Array<{
+    media?: {
       media_url_https?: string;
       media_url?: string;
       type?: string;
       video_info?: {
         duration_millis?: number;
         aspect_ratio?: number[];
-        variants?: Array<{
+        variants?: {
           content_type?: string;
           url?: string;
           bitrate?: number;
-        }>;
+        }[];
       };
-      sizes?: {
-        [key: string]: {
+      sizes?: Record<
+        string,
+        {
           w: number;
           h: number;
-        };
-      };
-    }>;
+        }
+      >;
+    }[];
   };
-  
+
   // Timestamps
   createdAt?: string;
   date?: string;
   timestamp?: string;
-  
+
   // URLs
   url?: string;
   twitterUrl?: string;
   tweetUrl?: string;
-  
+
   // Thread information
   isThread?: boolean;
   isReply?: boolean;
   inReplyToStatusId?: string;
   conversationId?: string;
   thread?: ApifyXResponse[];
-  
+
   // Quote tweet
   isQuote?: boolean;
   quotedStatus?: ApifyXResponse;
   quotedTweet?: ApifyXResponse;
-  
+
   // Hashtags and mentions
   hashtags?: string[];
   entities?: {
-    hashtags?: Array<{ text: string }>;
-    user_mentions?: Array<{ screen_name: string }>;
+    hashtags?: { text: string }[];
+    user_mentions?: { screen_name: string }[];
   };
-  
+
   // Metadata
   lang?: string;
   isRetweet?: boolean;
   retweetedStatus?: ApifyXResponse;
   source?: string;
-  
+
   // Custom fields for tracking
   scraped_at?: string;
   source_type?: string;
@@ -156,7 +157,7 @@ export interface ApifyXResponse {
  */
 interface MediaItem {
   url: string;
-  type?: 'photo' | 'video' | 'gif';
+  type?: "photo" | "video" | "gif";
   thumbnailUrl?: string;
 }
 
@@ -198,7 +199,13 @@ export interface ApifyErrorResponse {
 export interface ApifyRunInfo {
   id: string;
   actId: string;
-  status: 'READY' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'TIMED_OUT' | 'ABORTED';
+  status:
+    | "READY"
+    | "RUNNING"
+    | "SUCCEEDED"
+    | "FAILED"
+    | "TIMED_OUT"
+    | "ABORTED";
   statusMessage?: string;
   startedAt: string;
   finishedAt?: string;
@@ -221,14 +228,14 @@ export interface ProcessedXContent {
   authorUsername?: string;
   authorProfilePic?: string;
   publishedAt?: Date;
-  media?: Array<{
-    type: 'image' | 'video';
+  media?: {
+    type: "image" | "video";
     url: string;
     thumbnailUrl?: string;
     width?: number;
     height?: number;
     duration?: number; // for videos
-  }>;
+  }[];
   thread?: ProcessedXContent[];
   metrics?: {
     likes: number;
@@ -243,13 +250,17 @@ export interface ProcessedXContent {
 /**
  * Type guard to check if response is an error
  */
-export function isApifyError(response: any): response is ApifyErrorResponse {
-  return response && typeof response === 'object' && 'error' in response;
+export function isApifyError(
+  response: unknown,
+): response is ApifyErrorResponse {
+  return (
+    response !== null && typeof response === "object" && "error" in response
+  );
 }
 
 /**
  * Type guard to check if media item is an object
  */
 export function isMediaItem(item: string | MediaItem): item is MediaItem {
-  return typeof item === 'object' && 'url' in item;
+  return typeof item === "object" && "url" in item;
 }
