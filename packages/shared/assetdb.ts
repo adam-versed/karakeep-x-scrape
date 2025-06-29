@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import crypto from "node:crypto";
 import * as path from "path";
 import { Glob } from "glob";
 import { z } from "zod";

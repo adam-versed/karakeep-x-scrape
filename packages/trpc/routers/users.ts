@@ -42,17 +42,18 @@ export async function createUserRaw(
     emailVerified?: Date | null;
   },
 ) {
-  return await db.transaction(async (trx) => {
+  return db.transaction((trx) => {
     let userRole = input.role;
     if (!userRole) {
-      const [{ count: userCount }] = await trx
+      const [{ count: userCount }] = trx
         .select({ count: count() })
-        .from(users);
+        .from(users)
+        .all();
       userRole = userCount == 0 ? "admin" : "user";
     }
 
     try {
-      const [result] = await trx
+      const [result] = trx
         .insert(users)
         .values({
           name: input.name,
@@ -68,12 +69,16 @@ export async function createUserRaw(
           email: users.email,
           role: users.role,
           emailVerified: users.emailVerified,
-        });
+        })
+        .all();
 
       // Insert user settings for the new user
-      await trx.insert(userSettings).values({
-        userId: result.id,
-      });
+      trx
+        .insert(userSettings)
+        .values({
+          userId: result.id,
+        })
+        .run();
 
       return result;
     } catch (e) {

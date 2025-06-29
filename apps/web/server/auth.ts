@@ -89,7 +89,7 @@ const CustomProvider = (): Adapter => {
         emailVerified: user.emailVerified,
       });
     },
-  };
+  } as Adapter;
 };
 
 const providers: Provider[] = [
