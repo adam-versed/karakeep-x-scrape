@@ -454,8 +454,8 @@ export class ManualList extends List {
 
     const bookmarkIds = await this.getBookmarkIds();
 
-    await this.ctx.db.transaction(async (tx) => {
-      await tx
+    this.ctx.db.transaction((tx) => {
+      tx
         .insert(bookmarksInLists)
         .values(
           bookmarkIds.map((id) => ({
@@ -463,12 +463,14 @@ export class ManualList extends List {
             listId: targetList.list.id,
           })),
         )
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .run();
 
       if (deleteSourceAfterMerge) {
-        await tx
+        tx
           .delete(bookmarkLists)
-          .where(eq(bookmarkLists.id, this.list.id));
+          .where(eq(bookmarkLists.id, this.list.id))
+          .run();
       }
     });
   }

@@ -97,8 +97,8 @@ export class RuleEngineRuleModel implements PrivacyAware {
     input: z.infer<typeof zNewRuleEngineRuleSchema>,
   ): Promise<RuleEngineRuleModel> {
     // Similar to lists create, but for rules
-    const insertedRule = await ctx.db.transaction(async (tx) => {
-      const [newRule] = await tx
+    const insertedRule = ctx.db.transaction((tx) => {
+      const [newRule] = tx
         .insert(ruleEngineRulesTable)
         .values({
           name: input.name,
@@ -117,10 +117,11 @@ export class RuleEngineRuleModel implements PrivacyAware {
               ? input.event.tagId
               : null,
         })
-        .returning();
+        .returning()
+        .all();
 
       if (input.actions.length > 0) {
-        await tx.insert(ruleEngineActionsTable).values(
+        tx.insert(ruleEngineActionsTable).values(
           input.actions.map((action) => ({
             ruleId: newRule.id,
             userId: ctx.user.id,
@@ -134,7 +135,7 @@ export class RuleEngineRuleModel implements PrivacyAware {
                 ? action.tagId
                 : null,
           })),
-        );
+        ).run();
       }
       return newRule;
     });
@@ -150,8 +151,8 @@ export class RuleEngineRuleModel implements PrivacyAware {
       throw new TRPCError({ code: "BAD_REQUEST", message: "ID mismatch" });
     }
 
-    await this.ctx.db.transaction(async (tx) => {
-      const result = await tx
+    this.ctx.db.transaction((tx) => {
+      const result = tx
         .update(ruleEngineRulesTable)
         .set({
           name: input.name,
@@ -174,17 +175,19 @@ export class RuleEngineRuleModel implements PrivacyAware {
             eq(ruleEngineRulesTable.id, input.id),
             eq(ruleEngineRulesTable.userId, this.ctx.user.id),
           ),
-        );
+        )
+        .run();
 
       if (result.changes === 0) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
       }
 
       if (input.actions.length > 0) {
-        await tx
+        tx
           .delete(ruleEngineActionsTable)
-          .where(eq(ruleEngineActionsTable.ruleId, input.id));
-        await tx.insert(ruleEngineActionsTable).values(
+          .where(eq(ruleEngineActionsTable.ruleId, input.id))
+          .run();
+        tx.insert(ruleEngineActionsTable).values(
           input.actions.map((action) => ({
             ruleId: input.id,
             userId: this.ctx.user.id,
@@ -198,7 +201,7 @@ export class RuleEngineRuleModel implements PrivacyAware {
                 ? action.tagId
                 : null,
           })),
-        );
+        ).run();
       }
     });
 

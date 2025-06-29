@@ -296,22 +296,23 @@ export const tagsAppRouter = router({
         });
       }
 
-      const { deletedTags, affectedBookmarks } = await ctx.db.transaction(
-        async (trx) => {
+      const { deletedTags, affectedBookmarks } = ctx.db.transaction(
+        (trx) => {
           // Not entirely sure what happens with a racing transaction that adds a to-be-deleted tag on a bookmark. But it's fine for now.
 
           // NOTE: You can't really do an update here as you might violate the uniquness constraint if the info tag is already attached to the bookmark.
           // There's no OnConflict handling for updates in drizzle.
 
           // Unlink old tags
-          const unlinked = await trx
+          const unlinked = trx
             .delete(tagsOnBookmarks)
             .where(and(inArray(tagsOnBookmarks.tagId, input.fromTagIds)))
-            .returning();
+            .returning()
+            .all();
 
           // Re-attach them to the new tag
           if (unlinked.length > 0) {
-            await trx
+            trx
               .insert(tagsOnBookmarks)
               .values(
                 unlinked.map((u) => ({
@@ -319,11 +320,12 @@ export const tagsAppRouter = router({
                   tagId: input.intoTagId,
                 })),
               )
-              .onConflictDoNothing();
+              .onConflictDoNothing()
+              .run();
           }
 
           // Delete the old tags
-          const deletedTags = await trx
+          const deletedTags = trx
             .delete(bookmarkTags)
             .where(
               and(
@@ -331,7 +333,8 @@ export const tagsAppRouter = router({
                 eq(bookmarkTags.userId, ctx.user.id),
               ),
             )
-            .returning({ id: bookmarkTags.id });
+            .returning({ id: bookmarkTags.id })
+            .all();
 
           return {
             deletedTags,
