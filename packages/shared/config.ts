@@ -88,6 +88,11 @@ const allEnv = z.object({
 
   // A flag to detect if the user is running in the old separete containers setup
   USING_LEGACY_SEPARATE_CONTAINERS: stringBool("false"),
+
+  // Apify Configuration for Enhanced X.com Scraping
+  APIFY_API_KEY: z.string().optional(),
+  APIFY_X_SCRAPER_ACTOR_ID: z.string().default("apify/twitter-scraper"),
+  ENABLE_ENHANCED_X_SCRAPING: stringBool("false"),
 });
 
 const serverConfigSchema = allEnv.transform((val) => {
@@ -184,6 +189,13 @@ const serverConfigSchema = allEnv.transform((val) => {
     webhook: {
       timeoutSec: val.WEBHOOK_TIMEOUT_SEC,
       retryTimes: val.WEBHOOK_RETRY_TIMES,
+    },
+    scraping: {
+      apify: {
+        apiKey: val.APIFY_API_KEY,
+        xScraperActorId: val.APIFY_X_SCRAPER_ACTOR_ID,
+        enabled: val.ENABLE_ENHANCED_X_SCRAPING,
+      },
     },
   };
 });
