@@ -137,8 +137,8 @@ export function normalizeXComUrl(url: string): string {
       urlObj.searchParams.delete(param);
     });
 
-    // Remove hash if it's just tracking
-    if (urlObj.hash.match(/^#[a-zA-Z0-9_-]*$/)) {
+    // Remove hash if it's just tracking (simple alphanumeric only, not meaningful hashes)
+    if (urlObj.hash.match(/^#[a-zA-Z0-9]{1,10}$/)) {
       urlObj.hash = "";
     }
 
