@@ -1,19 +1,25 @@
 import "dotenv/config";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/libsql";
+import { createClient } from "@libsql/client";
 import * as schema from "./schema";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { migrate } from "drizzle-orm/libsql/migrator";
 import path from "path";
 
 import dbConfig from "./drizzle.config";
 
-const sqlite = new Database(dbConfig.dbCredentials.url);
-export const db = drizzle(sqlite, { schema });
+const client = createClient({
+  url: dbConfig.dbCredentials.url.startsWith("file:")
+    ? dbConfig.dbCredentials.url
+    : `file:${dbConfig.dbCredentials.url}`,
+});
+export const db = drizzle(client, { schema });
 export type DB = typeof db;
 
 export function getInMemoryDB(runMigrations: boolean) {
-  const mem = new Database(":memory:");
-  const db = drizzle(mem, { schema, logger: false });
+  const memClient = createClient({
+    url: ":memory:",
+  });
+  const db = drizzle(memClient, { schema, logger: false });
   if (runMigrations) {
     migrate(db, { migrationsFolder: path.resolve(__dirname, "./drizzle") });
   }

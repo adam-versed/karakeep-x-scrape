@@ -345,7 +345,7 @@ export const adminAppRouter = router({
         .set({ role: input.role })
         .where(eq(users.id, input.userId));
 
-      if (!result.changes) {
+      if (!result.rowsAffected) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "User not found",
@@ -368,7 +368,7 @@ export const adminAppRouter = router({
         .set({ password: hashedPassword, salt: newSalt })
         .where(eq(users.id, input.userId));
 
-      if (result.changes == 0) {
+      if (result.rowsAffected == 0) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "User not found",

@@ -59,24 +59,14 @@ DB_HAS_TABLES=false
 
 if [ -f "$DB_PATH" ]; then
     DB_EXISTS=true
-    # Check if database has the user table
-    if command_exists sqlite3; then
-        TABLE_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='user';" 2>/dev/null || echo "0")
-        if [ "$TABLE_COUNT" = "1" ]; then
-            DB_HAS_TABLES=true
-            echo "Database found at $DB_PATH with user table"
-        else
-            echo "Database found at $DB_PATH but missing user table"
-        fi
+    # Check file size to determine if database has been properly initialized
+    # A properly initialized database should be at least 100KB
+    DB_SIZE=$(stat -f%z "$DB_PATH" 2>/dev/null || stat -c%s "$DB_PATH" 2>/dev/null || echo "0")
+    if [ "$DB_SIZE" -gt 100000 ]; then
+        DB_HAS_TABLES=true
+        echo "Database found at $DB_PATH (size: $DB_SIZE bytes)"
     else
-        # If sqlite3 not available, check file size as a proxy
-        DB_SIZE=$(stat -f%z "$DB_PATH" 2>/dev/null || stat -c%s "$DB_PATH" 2>/dev/null || echo "0")
-        if [ "$DB_SIZE" -gt 1000 ]; then
-            DB_HAS_TABLES=true
-            echo "Database found at $DB_PATH (size: $DB_SIZE bytes)"
-        else
-            echo "Database found at $DB_PATH but appears to be empty"
-        fi
+        echo "Database found at $DB_PATH but appears to be empty (size: $DB_SIZE bytes)"
     fi
 else
     echo "No database found at $DB_PATH"
@@ -93,10 +83,10 @@ if [ "$DB_EXISTS" = false ] || [ "$DB_HAS_TABLES" = false ]; then
     # Verify migration succeeded
     if [ -f "$DB_PATH" ]; then
         DB_SIZE=$(stat -f%z "$DB_PATH" 2>/dev/null || stat -c%s "$DB_PATH" 2>/dev/null || echo "0")
-        if [ "$DB_SIZE" -gt 1000 ]; then
-            echo "✓ Database migrations completed successfully"
+        if [ "$DB_SIZE" -gt 100000 ]; then
+            echo "✓ Database migrations completed successfully (size: $DB_SIZE bytes)"
         else
-            echo "⚠️  Warning: Database created but appears to be empty. You may encounter issues."
+            echo "⚠️  Warning: Database created but appears to be too small (size: $DB_SIZE bytes). You may encounter issues."
         fi
     else
         echo "❌ Error: Database migration failed - no database file created"

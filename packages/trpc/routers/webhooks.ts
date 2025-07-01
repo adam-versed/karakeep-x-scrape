@@ -117,7 +117,7 @@ export const webhooksAppRouter = router({
             eq(webhooksTable.id, input.webhookId),
           ),
         );
-      if (res.changes == 0) {
+      if (res.rowsAffected == 0) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
     }),

@@ -156,7 +156,7 @@ export const tagsAppRouter = router({
       const res = await ctx.db
         .delete(bookmarkTags)
         .where(conditionFromInput(input, ctx.user.id));
-      if (res.changes == 0) {
+      if (res.rowsAffected == 0) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       await Promise.all(
@@ -185,7 +185,7 @@ export const tagsAppRouter = router({
             ),
           ),
         );
-      return { deletedTags: res.changes };
+      return { deletedTags: res.rowsAffected };
     }),
   update: authedProcedure
     .input(zUpdateTagRequestSchema)

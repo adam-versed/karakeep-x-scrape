@@ -199,7 +199,7 @@ export const usersAppRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const res = await ctx.db.delete(users).where(eq(users.id, input.userId));
-      if (res.changes == 0) {
+      if (res.rowsAffected == 0) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       await deleteUserAssets({ userId: input.userId });

@@ -210,7 +210,7 @@ export abstract class List implements PrivacyAware {
           eq(bookmarkLists.userId, this.ctx.user.id),
         ),
       );
-    if (res.changes == 0) {
+    if (res.rowsAffected == 0) {
       throw new TRPCError({ code: "NOT_FOUND" });
     }
   }
@@ -417,7 +417,7 @@ export class ManualList extends List {
           eq(bookmarksInLists.bookmarkId, bookmarkId),
         ),
       );
-    if (deleted.changes == 0) {
+    if (deleted.rowsAffected == 0) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: `Bookmark ${bookmarkId} is already not in list ${this.list.id}`,

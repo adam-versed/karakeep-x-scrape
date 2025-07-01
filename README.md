@@ -98,6 +98,19 @@ I'm a systems engineer in my day job (and have been for the past 7 years). I did
 
 Karakeep uses Weblate for managing translations. If you want to help translate Karakeep, you can do so [here](https://hosted.weblate.org/engage/hoarder/).
 
+## Database Migration to libSQL
+
+This fork includes a migration from better-sqlite3 to @libsql/client to resolve async transaction compatibility issues.
+
+### Key Changes:
+- **Database Driver**: Replaced `better-sqlite3` with `@libsql/client` for better async support
+- **API Updates**: Changed `.changes` to `.rowsAffected` for update/delete operations
+- **Compatibility**: Existing SQLite databases remain fully compatible
+- **Performance**: Async transactions now work without "Transaction function cannot return a promise" errors
+
+### Migration Details:
+The migration affects only the database layer (`packages/db`) and maintains full backward compatibility with existing SQLite databases. The change resolves fundamental async transaction issues that prevented proper operation with Node.js v22.
+
 ## Support
 
 If you're enjoying using Karakeep, drop a ⭐️ on the repo!
