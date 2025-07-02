@@ -525,7 +525,7 @@ export class ApifyService {
   }
 
   /**
-   * Create basic HTML content from post text
+   * Create basic HTML content from post text with embedded media
    */
   private createHtmlContent(post: ScrapedPost): string {
     let html = post.text;
@@ -545,10 +545,43 @@ export class ApifyService {
     // Convert line breaks
     html = html.replace(/\n/g, "<br>");
 
+    // Add media if present
+    if (post.media && post.media.length > 0) {
+      html += '<div class="x-media">';
+      post.media.forEach((mediaItem) => {
+        if (mediaItem.type === "photo") {
+          html += `<img src="${mediaItem.url}" alt="Post image" style="max-width: 100%; height: auto; margin: 8px 0; border-radius: 8px;" loading="lazy" />`;
+        } else if (mediaItem.type === "video") {
+          html += `<video controls style="max-width: 100%; height: auto; margin: 8px 0; border-radius: 8px;">`;
+          html += `<source src="${mediaItem.url}" />`;
+          if (mediaItem.thumbnailUrl) {
+            html += `<img src="${mediaItem.thumbnailUrl}" alt="Video thumbnail" style="max-width: 100%; height: auto;" />`;
+          }
+          html += `Your browser does not support the video tag.</video>`;
+        } else if (mediaItem.type === "gif") {
+          // GIFs can be displayed as images or videos depending on format
+          if (
+            mediaItem.url.includes(".mp4") ||
+            mediaItem.url.includes("video")
+          ) {
+            html += `<video autoplay loop muted style="max-width: 100%; height: auto; margin: 8px 0; border-radius: 8px;">`;
+            html += `<source src="${mediaItem.url}" />`;
+            if (mediaItem.thumbnailUrl) {
+              html += `<img src="${mediaItem.thumbnailUrl}" alt="GIF thumbnail" style="max-width: 100%; height: auto;" />`;
+            }
+            html += `</video>`;
+          } else {
+            html += `<img src="${mediaItem.url}" alt="GIF" style="max-width: 100%; height: auto; margin: 8px 0; border-radius: 8px;" loading="lazy" />`;
+          }
+        }
+      });
+      html += "</div>";
+    }
+
     // Add quoted post if present
     if (post.quotedPost) {
       const quotedHtml = this.createHtmlContent(post.quotedPost);
-      html += `<div class="quoted-post">${quotedHtml}</div>`;
+      html += `<div class="quoted-post" style="border: 1px solid #e1e8ed; border-radius: 8px; padding: 12px; margin: 12px 0; background-color: #f7f9fa;">${quotedHtml}</div>`;
     }
 
     return `<div class="x-post">${html}</div>`;
