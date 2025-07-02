@@ -144,6 +144,27 @@ export interface ApifyXResponse {
   entities?: {
     hashtags?: { text: string }[];
     user_mentions?: { screen_name: string }[];
+    media?: {
+      media_url_https?: string;
+      media_url?: string;
+      type?: string;
+      video_info?: {
+        duration_millis?: number;
+        aspect_ratio?: number[];
+        variants?: {
+          content_type?: string;
+          url?: string;
+          bitrate?: number;
+        }[];
+      };
+      sizes?: Record<
+        string,
+        {
+          w: number;
+          h: number;
+        }
+      >;
+    }[];
   };
 
   // Metadata

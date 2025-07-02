@@ -279,6 +279,62 @@ export class ApifyService {
       }
     });
 
+    // Handle entities media (Twitter API format)
+    if (item.entities?.media) {
+      item.entities.media.forEach((mediaItem) => {
+        const url = mediaItem.media_url_https || mediaItem.media_url;
+        if (!url) return;
+
+        const type =
+          mediaItem.type === "video"
+            ? "video"
+            : mediaItem.type === "animated_gif"
+              ? "gif"
+              : "photo";
+
+        const mediaEntry: NonNullable<ScrapedPost["media"]>[0] = {
+          type,
+          url,
+        };
+
+        // Add video metadata if available
+        if (type === "video" && mediaItem.video_info) {
+          mediaEntry.duration = mediaItem.video_info.duration_millis
+            ? Math.round(mediaItem.video_info.duration_millis / 1000)
+            : undefined;
+
+          // Extract highest quality video URL if available
+          if (
+            mediaItem.video_info.variants &&
+            mediaItem.video_info.variants.length > 0
+          ) {
+            const bestVariant = mediaItem.video_info.variants
+              .filter((v) => v.content_type?.includes("video"))
+              .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+            if (bestVariant?.url) {
+              mediaEntry.url = bestVariant.url;
+            }
+          }
+        }
+
+        // Add dimensions if available
+        if (mediaItem.sizes?.large) {
+          mediaEntry.width = mediaItem.sizes.large.w;
+          mediaEntry.height = mediaItem.sizes.large.h;
+        } else if (mediaItem.sizes?.medium) {
+          mediaEntry.width = mediaItem.sizes.medium.w;
+          mediaEntry.height = mediaItem.sizes.medium.h;
+        }
+
+        // Add thumbnail for videos
+        if (type === "video" || type === "gif") {
+          mediaEntry.thumbnailUrl = url; // Original URL serves as thumbnail
+        }
+
+        media.push(mediaEntry);
+      });
+    }
+
     // Handle extended entities (Twitter API format)
     if (item.extendedEntities?.media) {
       item.extendedEntities.media.forEach((mediaItem) => {
@@ -335,7 +391,13 @@ export class ApifyService {
       });
     }
 
-    return media.length > 0 ? media : undefined;
+    // Deduplicate media by URL
+    const uniqueMedia = media.filter(
+      (item, index, arr) =>
+        arr.findIndex((other) => other.url === item.url) === index,
+    );
+
+    return uniqueMedia.length > 0 ? uniqueMedia : undefined;
   }
 
   /**
