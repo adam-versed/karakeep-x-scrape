@@ -581,7 +581,12 @@ export class ApifyService {
     // Add quoted post if present
     if (post.quotedPost) {
       const quotedHtml = this.createHtmlContent(post.quotedPost);
-      html += `<div class="quoted-post" style="border: 1px solid #e1e8ed; border-radius: 8px; padding: 12px; margin: 12px 0; background-color: #f7f9fa;">${quotedHtml}</div>`;
+      html += `<div class="quoted-post" style="border: 2px solid #1d9bf0; border-radius: 8px; padding: 12px; margin: 12px 0; background-color: transparent;">${quotedHtml}</div>`;
+    }
+
+    // Add link to original post
+    if (post.url) {
+      html += `<div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e1e8ed;"><a href="${post.url}" target="_blank" rel="noopener noreferrer" style="color: #1d9bf0; text-decoration: none; font-size: 14px;">View original post on X →</a></div>`;
     }
 
     return `<div class="x-post">${html}</div>`;
