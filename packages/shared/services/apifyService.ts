@@ -90,9 +90,10 @@ export class ApifyService {
   /**
    * Run the Apify actor with the given configuration
    */
-  private async runApifyActor(
-    config: any, // Changed from ApifyScrapingConfig to support new format
-  ): Promise<ScrapedPost[]> {
+  private async runApifyActor(config: {
+    startUrls: string[];
+    maxItems: number;
+  }): Promise<ScrapedPost[]> {
     try {
       logger.debug("Running Apify actor with config:", config);
 
@@ -104,7 +105,7 @@ export class ApifyService {
       logger.debug(`Actor run completed with ID: ${run.id}`);
 
       // Retry logic for delayed dataset results
-      let items: any[] = [];
+      let items: ApifyXResponse[] = [];
       const maxRetries = 3;
       const retryDelay = 5000; // 5 seconds
 
@@ -113,9 +114,11 @@ export class ApifyService {
         const result = await this.client
           .dataset(run.defaultDatasetId)
           .listItems();
-        
-        items = result.items;
-        logger.debug(`Attempt ${attempt + 1}: Retrieved ${items.length} items from dataset`);
+
+        items = result.items as ApifyXResponse[];
+        logger.debug(
+          `Attempt ${attempt + 1}: Retrieved ${items.length} items from dataset`,
+        );
 
         // If we got results, break out of retry loop
         if (items.length > 0) {
@@ -124,7 +127,9 @@ export class ApifyService {
 
         // If not the last attempt, wait before retrying
         if (attempt < maxRetries - 1) {
-          logger.debug(`No items found, waiting ${retryDelay}ms before retry...`);
+          logger.debug(
+            `No items found, waiting ${retryDelay}ms before retry...`,
+          );
           await this.delay(retryDelay);
         }
       }
@@ -134,7 +139,7 @@ export class ApifyService {
       }
 
       // Transform Apify results to normalized format
-      return this.normalizeApifyResults(items as ApifyXResponse[]);
+      return this.normalizeApifyResults(items);
     } catch (error) {
       if (isApifyError(error)) {
         logger.error(
@@ -197,6 +202,8 @@ export class ApifyService {
       retweets: item.retweets || item.retweetCount || 0,
       replies: item.replies || item.replyCount || 0,
       views: item.viewCount || item.views,
+      bookmarks: item.bookmarkCount,
+      quotes: item.quoteCount,
     };
 
     // Extract media
@@ -223,7 +230,7 @@ export class ApifyService {
       : undefined;
 
     // Handle quoted post
-    const quotedItem = item.quotedStatus || item.quotedTweet;
+    const quotedItem = item.quotedStatus || item.quotedTweet || item.quote;
     const quotedPost = quotedItem
       ? this.normalizeApifyItem(quotedItem) || undefined
       : undefined;
@@ -395,6 +402,11 @@ export class ApifyService {
           )
         : undefined;
 
+    // Handle quoted post
+    const quotedPost = post.quotedPost
+      ? this.transformToKarakeepFormat(post.quotedPost, allPosts)
+      : undefined;
+
     return {
       title: `${post.author.name} (@${post.author.username})`,
       content: post.text,
@@ -405,6 +417,7 @@ export class ApifyService {
       publishedAt: post.createdAt ? new Date(post.createdAt) : undefined,
       media,
       thread,
+      quotedPost,
       metrics: post.metrics,
       hashtags: post.hashtags,
       mentions: post.mentions,

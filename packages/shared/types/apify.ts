@@ -21,6 +21,8 @@ export interface ScrapedPost {
     retweets: number;
     replies: number;
     views?: number;
+    bookmarks?: number;
+    quotes?: number;
   };
   media?: {
     type: "photo" | "video" | "gif";
@@ -79,6 +81,8 @@ export interface ApifyXResponse {
   replyCount?: number;
   viewCount?: number;
   views?: number;
+  bookmarkCount?: number;
+  quoteCount?: number;
 
   // Media arrays
   photos?: string[];
@@ -132,6 +136,8 @@ export interface ApifyXResponse {
   isQuote?: boolean;
   quotedStatus?: ApifyXResponse;
   quotedTweet?: ApifyXResponse;
+  quote?: ApifyXResponse;
+  quoteId?: string;
 
   // Hashtags and mentions
   hashtags?: string[];
@@ -237,11 +243,14 @@ export interface ProcessedXContent {
     duration?: number; // for videos
   }[];
   thread?: ProcessedXContent[];
+  quotedPost?: ProcessedXContent;
   metrics?: {
     likes: number;
     retweets: number;
     replies: number;
     views?: number;
+    bookmarks?: number;
+    quotes?: number;
   };
   hashtags?: string[];
   mentions?: string[];
