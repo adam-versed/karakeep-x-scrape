@@ -64,3 +64,12 @@ A separate feature branch (`feat/drizzle-with-x-scrape`) contains X.com scraping
 - Node.js v22 is required
 - The project uses pnpm for package management
 - Docker containers are used for Meilisearch and headless Chrome services
+
+## Development Workflow
+
+### Commit Checks
+- Ensure after each task is completed to run the following checks before attempting to commit:
+  - `pnpm typecheck`
+  - `pnpm format --check`
+  - `pnpm lint`
+  - `pnpm exec sherif`

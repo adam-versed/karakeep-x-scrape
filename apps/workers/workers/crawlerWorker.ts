@@ -849,6 +849,15 @@ async function crawlXComWithApify(
 /**
  * Process Apify results and update bookmark
  */
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 async function processApifyResult(
   apifyData: ProcessedXContent,
   url: string,
@@ -868,15 +877,15 @@ async function processApifyResult(
       `
       <html>
         <head>
-          <title>${apifyData.title || "X Post"}</title>
-          <meta property="og:title" content="${apifyData.title || ""}" />
-          <meta property="og:description" content="${apifyData.content || ""}" />
-          <meta property="og:image" content="${apifyData.authorProfilePic || ""}" />
-          <meta name="author" content="${apifyData.author || ""}" />
+          <title>${escapeHtml(apifyData.title || "X Post")}</title>
+          <meta property="og:title" content="${escapeHtml(apifyData.title || "")}" />
+          <meta property="og:description" content="${escapeHtml(apifyData.content || "")}" />
+          <meta property="og:image" content="${escapeHtml(apifyData.authorProfilePic || "")}" />
+          <meta name="author" content="${escapeHtml(apifyData.author || "")}" />
         </head>
         <body>
           <div class="x-post">
-            ${apifyData.content || ""}
+            ${escapeHtml(apifyData.content || "")}
           </div>
         </body>
       </html>
@@ -892,8 +901,9 @@ async function processApifyResult(
     let imageAssetInfo: DBAssetType | null = null;
     if (apifyData.media && apifyData.media.length > 0) {
       // Use first image as the main image
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const firstImage = apifyData.media.find((m: any) => m.type === "image");
+      const firstImage = apifyData.media.find(
+        (m: NonNullable<ProcessedXContent["media"]>[0]) => m.type === "image",
+      );
       if (firstImage) {
         try {
           const downloaded = await downloadAndStoreImage(

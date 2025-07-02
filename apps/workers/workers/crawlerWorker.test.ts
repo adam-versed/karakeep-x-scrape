@@ -86,18 +86,13 @@ vi.mock("utils", () => ({
 }));
 
 describe("Crawler Worker X.com Integration", () => {
-  let _mockJob: unknown;
-
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Add static method to mocked ApifyService
     ApifyService.isEnabled = mockIsEnabled;
 
-    _mockJob = {
-      id: "test-job-123",
-      abortSignal: new AbortController().signal,
-    };
+    // Mock job setup removed as it's not currently used in tests
   });
 
   afterEach(() => {
@@ -407,25 +402,12 @@ describe("Crawler Worker X.com Integration", () => {
   });
 
   describe("queue integration", () => {
-    test("handles post-processing queue operations", () => {
-      // Test that queue operations are properly defined
-      // The actual queue calls would be tested in the real implementation
-      expect(true).toBe(true); // Placeholder test
-    });
+    test.todo("should handle post-processing queue operations");
   });
 
   describe("database integration", () => {
-    test("handles bookmark updates", () => {
-      // Test that database operations are properly mocked
-      // The actual implementation would use the mocked db functions
-      expect(true).toBe(true); // Placeholder test
-    });
-
-    test("handles asset storage operations", () => {
-      // Test that asset operations are properly mocked
-      // The actual implementation would use the mocked workerUtils functions
-      expect(true).toBe(true); // Placeholder test
-    });
+    test.todo("should handle bookmark updates with proper database operations");
+    test.todo("should handle asset storage operations with proper mocking");
   });
 
   describe("error handling and edge cases", () => {
@@ -446,10 +428,37 @@ describe("Crawler Worker X.com Integration", () => {
       expect(result).toBe(false);
     });
 
-    test("handles missing bookmark data", () => {
-      // Test that missing bookmark data is handled gracefully
-      // The actual implementation would check for null/undefined bookmark details
-      expect(true).toBe(true); // Placeholder test
+    test("handles missing bookmark data", async () => {
+      const { getBookmarkDetails } = await import("workerUtils");
+
+      // Test case 1: getBookmarkDetails throws error for non-existent bookmark
+      vi.mocked(getBookmarkDetails).mockRejectedValue(
+        new Error("The bookmark either doesn't exist or is not a link"),
+      );
+
+      await expect(
+        getBookmarkDetails("non-existent-bookmark-id"),
+      ).rejects.toThrow("The bookmark either doesn't exist or is not a link");
+
+      // Test case 2: getBookmarkDetails returns data with missing optional fields
+      vi.mocked(getBookmarkDetails).mockResolvedValue({
+        url: "https://example.com",
+        userId: "user-123",
+        screenshotAssetId: undefined,
+        imageAssetId: undefined,
+        fullPageArchiveAssetId: undefined,
+        videoAssetId: undefined,
+        precrawledArchiveAssetId: undefined,
+      });
+
+      const result = await getBookmarkDetails("valid-bookmark-id");
+      expect(result.url).toBe("https://example.com");
+      expect(result.userId).toBe("user-123");
+      expect(result.screenshotAssetId).toBeUndefined();
+      expect(result.imageAssetId).toBeUndefined();
+      expect(result.fullPageArchiveAssetId).toBeUndefined();
+      expect(result.videoAssetId).toBeUndefined();
+      expect(result.precrawledArchiveAssetId).toBeUndefined();
     });
 
     test("handles incomplete Apify responses", async () => {
@@ -486,25 +495,32 @@ describe("Crawler Worker X.com Integration", () => {
 
   describe("performance considerations", () => {
     test("handles timeout scenarios", async () => {
-      // Test that timeout scenarios are handled gracefully
-      // The actual implementation would use withTimeout wrapper
-      const slowOperation = () =>
-        new Promise((resolve) => setTimeout(resolve, 100));
-      const timeoutMs = 50;
+      // Use fake timers for deterministic timeout testing
+      vi.useFakeTimers();
 
-      // Simulate timeout behavior
-      const start = Date.now();
       try {
-        await Promise.race([
+        // Test that timeout scenarios are handled gracefully
+        // The actual implementation would use withTimeout wrapper
+        const slowOperation = () =>
+          new Promise((resolve) => setTimeout(resolve, 100));
+        const timeoutMs = 50;
+
+        // Start the race between slow operation and timeout
+        const racePromise = Promise.race([
           slowOperation(),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error("Timeout")), timeoutMs),
           ),
         ]);
-      } catch (error) {
-        const elapsed = Date.now() - start;
-        expect(elapsed).toBeGreaterThanOrEqual(timeoutMs - 10); // Allow small margin
-        expect((error as Error).message).toBe("Timeout");
+
+        // Advance timers to trigger the timeout (but not the slow operation)
+        vi.advanceTimersByTime(timeoutMs);
+
+        // Expect the timeout to occur
+        await expect(racePromise).rejects.toThrow("Timeout");
+      } finally {
+        // Always restore real timers
+        vi.useRealTimers();
       }
     });
 

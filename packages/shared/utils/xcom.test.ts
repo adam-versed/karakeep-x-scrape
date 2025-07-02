@@ -37,9 +37,9 @@ describe("X.com URL utilities", () => {
       expect(extractTweetId("https://x.com/username/status/1234567890")).toBe(
         "1234567890",
       );
-      expect(
-        extractTweetId("https://twitter.com/user/status/9876543210"),
-      ).toBe("9876543210");
+      expect(extractTweetId("https://twitter.com/user/status/9876543210")).toBe(
+        "9876543210",
+      );
       expect(
         extractTweetId("https://x.com/username/status/123?s=20&t=abc"),
       ).toBe("123");
@@ -131,9 +131,9 @@ describe("X.com URL utilities", () => {
     });
 
     it("should preserve meaningful hash", () => {
-      expect(
-        normalizeXComUrl("https://x.com/user/status/123#thread-2"),
-      ).toBe("https://x.com/user/status/123#thread-2");
+      expect(normalizeXComUrl("https://x.com/user/status/123#thread-2")).toBe(
+        "https://x.com/user/status/123#thread-2",
+      );
     });
 
     it("should return original URL if parsing fails", () => {
@@ -176,7 +176,11 @@ describe("Text processing utilities", () => {
   describe("extractHashtags", () => {
     it("should extract hashtags from text", () => {
       const text = "Check out this #awesome #project on #GitHub!";
-      expect(extractHashtags(text)).toEqual(["#awesome", "#project", "#GitHub"]);
+      expect(extractHashtags(text)).toEqual([
+        "#awesome",
+        "#project",
+        "#GitHub",
+      ]);
     });
 
     it("should remove duplicates", () => {
@@ -190,7 +194,11 @@ describe("Text processing utilities", () => {
 
     it("should handle hashtags with numbers", () => {
       const text = "#web3 #2024trends #ai2024";
-      expect(extractHashtags(text)).toEqual(["#web3", "#2024trends", "#ai2024"]);
+      expect(extractHashtags(text)).toEqual([
+        "#web3",
+        "#2024trends",
+        "#ai2024",
+      ]);
     });
   });
 

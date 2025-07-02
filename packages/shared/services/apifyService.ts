@@ -8,6 +8,7 @@ import type {
 import serverConfig from "../config.js";
 import logger from "../logger.js";
 import { isApifyError } from "../types/apify.js";
+import { isXComUrl } from "../utils/xcom.js";
 
 // Use the default logger for now
 
@@ -596,17 +597,7 @@ export class ApifyService {
    * Check if a URL is an X.com/Twitter URL
    */
   private isXUrl(url: string): boolean {
-    try {
-      const urlObj = new URL(url);
-      return (
-        urlObj.hostname === "x.com" ||
-        urlObj.hostname === "twitter.com" ||
-        urlObj.hostname === "www.x.com" ||
-        urlObj.hostname === "www.twitter.com"
-      );
-    } catch {
-      return false;
-    }
+    return isXComUrl(url);
   }
 
   /**
