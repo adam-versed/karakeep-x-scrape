@@ -302,12 +302,33 @@ export class ApifyService {
           mediaEntry.duration = mediaItem.video_info.duration_millis
             ? Math.round(mediaItem.video_info.duration_millis / 1000)
             : undefined;
+
+          // Extract highest quality video URL if available
+          if (
+            mediaItem.video_info.variants &&
+            mediaItem.video_info.variants.length > 0
+          ) {
+            const bestVariant = mediaItem.video_info.variants
+              .filter((v) => v.content_type?.includes("video"))
+              .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+            if (bestVariant?.url) {
+              mediaEntry.url = bestVariant.url;
+            }
+          }
         }
 
-        // Add dimensions if available
+        // Add dimensions if available, prefer large size
         if (mediaItem.sizes?.large) {
           mediaEntry.width = mediaItem.sizes.large.w;
           mediaEntry.height = mediaItem.sizes.large.h;
+        } else if (mediaItem.sizes?.medium) {
+          mediaEntry.width = mediaItem.sizes.medium.w;
+          mediaEntry.height = mediaItem.sizes.medium.h;
+        }
+
+        // Add thumbnail for videos
+        if (type === "video" || type === "gif") {
+          mediaEntry.thumbnailUrl = url; // Original URL serves as thumbnail
         }
 
         media.push(mediaEntry);
@@ -394,6 +415,23 @@ export class ApifyService {
       duration: m.duration,
     }));
 
+    // Include media from quoted post for better searchability
+    const quotedMedia = post.quotedPost?.media?.map((m) => ({
+      type: m.type === "photo" ? ("image" as const) : ("video" as const),
+      url: m.url,
+      thumbnailUrl: m.thumbnailUrl,
+      width: m.width,
+      height: m.height,
+      duration: m.duration,
+    }));
+
+    // Combine media arrays, avoiding duplicates
+    const allMedia = [...(media || []), ...(quotedMedia || [])];
+    const uniqueMedia = allMedia.filter(
+      (item, index, arr) =>
+        arr.findIndex((other) => other.url === item.url) === index,
+    );
+
     // Handle thread content
     const thread =
       post.isThread && post.threadPosts
@@ -415,7 +453,7 @@ export class ApifyService {
       authorUsername: post.author.username,
       authorProfilePic: post.author.profilePicture,
       publishedAt: post.createdAt ? new Date(post.createdAt) : undefined,
-      media,
+      media: uniqueMedia.length > 0 ? uniqueMedia : undefined,
       thread,
       quotedPost,
       metrics: post.metrics,
@@ -444,6 +482,12 @@ export class ApifyService {
 
     // Convert line breaks
     html = html.replace(/\n/g, "<br>");
+
+    // Add quoted post if present
+    if (post.quotedPost) {
+      const quotedHtml = this.createHtmlContent(post.quotedPost);
+      html += `<div class="quoted-post">${quotedHtml}</div>`;
+    }
 
     return `<div class="x-post">${html}</div>`;
   }
