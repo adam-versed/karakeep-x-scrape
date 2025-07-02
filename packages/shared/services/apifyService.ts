@@ -1,7 +1,6 @@
 import { ApifyClient } from "apify-client";
 
 import type {
-  ApifyScrapingConfig,
   ApifyXResponse,
   ProcessedXContent,
   ScrapedPost,
@@ -40,13 +39,10 @@ export class ApifyService {
     logger.info(`Starting scrape for URL: ${url}`);
 
     try {
-      const config: ApifyScrapingConfig = {
-        urls: [url],
-        maxTweets: 50, // Include thread posts
-        includeThread: true,
-        includeReplies: false,
-        includeRetweets: false,
-        includeQuoteTweets: true,
+      // Use correct input format for apidojo/twitter-scraper-lite
+      const config = {
+        startUrls: [url],
+        maxItems: 50, // Limit results for threads
       };
 
       const results = await this.runApifyActor(config);
@@ -95,7 +91,7 @@ export class ApifyService {
    * Run the Apify actor with the given configuration
    */
   private async runApifyActor(
-    config: ApifyScrapingConfig,
+    config: any, // Changed from ApifyScrapingConfig to support new format
   ): Promise<ScrapedPost[]> {
     try {
       logger.debug("Running Apify actor with config:", config);
@@ -107,12 +103,35 @@ export class ApifyService {
 
       logger.debug(`Actor run completed with ID: ${run.id}`);
 
-      // Fetch results from the run's dataset
-      const { items } = await this.client
-        .dataset(run.defaultDatasetId)
-        .listItems();
+      // Retry logic for delayed dataset results
+      let items: any[] = [];
+      const maxRetries = 3;
+      const retryDelay = 5000; // 5 seconds
 
-      logger.debug(`Retrieved ${items.length} items from dataset`);
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        // Fetch results from the run's dataset
+        const result = await this.client
+          .dataset(run.defaultDatasetId)
+          .listItems();
+        
+        items = result.items;
+        logger.debug(`Attempt ${attempt + 1}: Retrieved ${items.length} items from dataset`);
+
+        // If we got results, break out of retry loop
+        if (items.length > 0) {
+          break;
+        }
+
+        // If not the last attempt, wait before retrying
+        if (attempt < maxRetries - 1) {
+          logger.debug(`No items found, waiting ${retryDelay}ms before retry...`);
+          await this.delay(retryDelay);
+        }
+      }
+
+      if (items.length === 0) {
+        logger.warn(`No items retrieved after ${maxRetries} attempts`);
+      }
 
       // Transform Apify results to normalized format
       return this.normalizeApifyResults(items as ApifyXResponse[]);
