@@ -597,4 +597,129 @@ describe("ApifyService", () => {
       }
     });
   });
+
+  describe("Enhanced X.com scraping", () => {
+    test("should handle complete API response with quote tweet and all metrics", async () => {
+      const completeApiResponse: ApifyXResponse = {
+        type: "tweet",
+        id: "1940157420963340456",
+        url: "https://x.com/TheMattBerman/status/1940157420963340456",
+        text: 'i just built an open source dashboard to track real-time brand mentions on TikTok, YouTube, Reddit & web.\n\n✅AI-powered sentiment (shoutout @openrouterai, @adrian_horning_, @ExaAILabs)\n✅ Google Search insights + analytics\n\nComment "dashboard" and I\'ll DM you the link. Make sure DMs are open.',
+        retweetCount: 1,
+        replyCount: 14,
+        likeCount: 8,
+        quoteCount: 0,
+        viewCount: 1683,
+        bookmarkCount: 5,
+        createdAt: "Tue Jul 01 21:15:50 +0000 2025",
+        isQuote: true,
+        author: {
+          userName: "TheMattBerman",
+          name: "Matthew Berman",
+          isVerified: false,
+          followers: 2911,
+          profilePicture:
+            "https://pbs.twimg.com/profile_images/1922698450908352512/4FOb6Djy_normal.jpg",
+        },
+        quote: {
+          type: "tweet",
+          id: "1939520903500513696",
+          text: "Why should it cost you thousands of dollars to track mentions of your brand?\n\nI'll be giving away this social listening and attribution dashboard free and open source. This week.\n\nIt uses scrapecreators (@adrian_horning_ ), @ExaAILabs, and @Google search console. https://t.co/JmczSKfvMl",
+          retweetCount: 0,
+          replyCount: 1,
+          likeCount: 11,
+          quoteCount: 2,
+          viewCount: 9511,
+          bookmarkCount: 15,
+          createdAt: "Mon Jun 30 03:06:32 +0000 2025",
+          author: {
+            userName: "TheMattBerman",
+            name: "Matthew Berman",
+            isVerified: false,
+            followers: 2911,
+            profilePicture:
+              "https://pbs.twimg.com/profile_images/1922698450908352512/4FOb6Djy_normal.jpg",
+          },
+          extendedEntities: {
+            media: [
+              {
+                media_url_https:
+                  "https://pbs.twimg.com/media/GuqPbB-XgAEJTqc.jpg",
+                type: "photo",
+                sizes: {
+                  large: { h: 1257, w: 2048 },
+                  medium: { h: 737, w: 1200 },
+                },
+              },
+            ],
+          },
+          entities: {
+            hashtags: [],
+            user_mentions: [
+              { screen_name: "adrian_horning_" },
+              { screen_name: "ExaAILabs" },
+              { screen_name: "Google" },
+            ],
+          },
+        },
+        entities: {
+          hashtags: [],
+          user_mentions: [
+            { screen_name: "openrouterai" },
+            { screen_name: "adrian_horning_" },
+            { screen_name: "ExaAILabs" },
+          ],
+        },
+      };
+
+      mockCall.mockResolvedValue({
+        id: "test-run-id",
+        defaultDatasetId: "test-dataset-id",
+      });
+
+      mockListItems.mockResolvedValue({
+        items: [completeApiResponse],
+      });
+
+      const result = await service.scrapeXUrl(
+        "https://x.com/TheMattBerman/status/1940157420963340456",
+      );
+
+      expect(result).toBeDefined();
+      expect(result?.title).toBe("Matthew Berman (@TheMattBerman)");
+      expect(result?.content).toContain("AI-powered sentiment");
+
+      // Verify enhanced metrics
+      expect(result?.metrics?.likes).toBe(8);
+      expect(result?.metrics?.retweets).toBe(1);
+      expect(result?.metrics?.replies).toBe(14);
+      expect(result?.metrics?.views).toBe(1683);
+      expect(result?.metrics?.bookmarks).toBe(5);
+      expect(result?.metrics?.quotes).toBe(0);
+
+      // Verify quoted post is captured
+      expect(result?.quotedPost).toBeDefined();
+      expect(result?.quotedPost?.content).toContain("social listening");
+      expect(result?.quotedPost?.metrics?.bookmarks).toBe(15);
+      expect(result?.quotedPost?.metrics?.quotes).toBe(2);
+
+      // Verify media from quoted post is included in main media array
+      expect(result?.media).toBeDefined();
+      expect(result?.media?.length).toBeGreaterThan(0);
+      expect(result?.media?.[0]?.url).toBe(
+        "https://pbs.twimg.com/media/GuqPbB-XgAEJTqc.jpg",
+      );
+      expect(result?.media?.[0]?.type).toBe("image");
+      expect(result?.media?.[0]?.width).toBe(2048);
+      expect(result?.media?.[0]?.height).toBe(1257);
+
+      // Verify HTML content includes quoted post
+      expect(result?.htmlContent).toContain('class="quoted-post"');
+
+      // Verify mentions are extracted
+      expect(result?.mentions).toContain("@openrouterai");
+      expect(result?.mentions).toContain("@adrian_horning_");
+      expect(result?.mentions).toContain("@ExaAILabs");
+    });
+  });
 });

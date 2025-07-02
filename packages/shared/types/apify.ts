@@ -45,6 +45,9 @@ export interface ScrapedPost {
  * Contains various optional fields that need normalization
  */
 export interface ApifyXResponse {
+  // Type field
+  type?: string;
+
   // ID fields (different actors use different field names)
   id?: string;
   tweetId?: string;
