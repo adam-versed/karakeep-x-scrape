@@ -345,12 +345,16 @@ class GeminiInferenceClient implements InferenceClient {
       serverConfig.inference.outputSchema === "json" ||
       optsWithDefaults.schema
     ) {
-      formattedPrompt = `${prompt}\n\nIMPORTANT: You must respond with valid, complete JSON only. Do not include any text before or after the JSON. Ensure the JSON is properly closed with all brackets and braces.`;
+      formattedPrompt = `${prompt}\n\nIMPORTANT: You must respond with valid, complete JSON only. Do not wrap the JSON in markdown code blocks or backticks. Do not include any text before or after the JSON. Ensure the JSON is properly closed with all brackets and braces.`;
       if (optsWithDefaults.schema) {
         const jsonSchema = zodToJsonSchema(optsWithDefaults.schema);
         formattedPrompt += `\n\nRequired JSON schema: ${JSON.stringify(jsonSchema)}`;
       }
     }
+
+    logger.debug(
+      `[GeminiInferenceClient] Sending prompt: ${formattedPrompt.substring(0, 300)}...`,
+    );
 
     const result = await this.textModel.generateContent(
       {
@@ -368,8 +372,53 @@ class GeminiInferenceClient implements InferenceClient {
     const response = result.response;
     const text = response.text();
 
+    // Detailed logging for debugging JSON issues
+    logger.debug(`[GeminiInferenceClient] Raw response length: ${text.length}`);
+    logger.debug(
+      `[GeminiInferenceClient] Response preview (first 200 chars): ${text.substring(0, 200)}`,
+    );
+    logger.debug(
+      `[GeminiInferenceClient] Response preview (last 200 chars): ${text.substring(Math.max(0, text.length - 200))}`,
+    );
+    logger.debug(
+      `[GeminiInferenceClient] Total tokens used: ${response.usageMetadata?.totalTokenCount}`,
+    );
+    logger.debug(
+      `[GeminiInferenceClient] Finish reason: ${result.response.candidates?.[0]?.finishReason}`,
+    );
+
+    // Extract JSON from markdown code blocks if present
+    let cleanedText = text;
+    if (
+      (serverConfig.inference.outputSchema === "json" ||
+        optsWithDefaults.schema) &&
+      text.includes("```json")
+    ) {
+      logger.debug(
+        `[GeminiInferenceClient] Detected JSON wrapped in markdown, extracting...`,
+      );
+      const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+        cleanedText = jsonMatch[1].trim();
+        logger.debug(
+          `[GeminiInferenceClient] Extracted JSON: ${cleanedText.substring(0, 100)}...`,
+        );
+      } else {
+        logger.warn(
+          `[GeminiInferenceClient] Failed to extract JSON from markdown blocks`,
+        );
+      }
+    }
+
+    // Check if response looks like truncated JSON
+    if (cleanedText.includes('{"tags":') && !cleanedText.includes("}]")) {
+      logger.warn(
+        `[GeminiInferenceClient] Detected potentially truncated JSON response`,
+      );
+    }
+
     return {
-      response: text,
+      response: cleanedText,
       totalTokens: response.usageMetadata?.totalTokenCount,
     };
   }
@@ -390,7 +439,7 @@ class GeminiInferenceClient implements InferenceClient {
       serverConfig.inference.outputSchema === "json" ||
       optsWithDefaults.schema
     ) {
-      formattedPrompt = `${prompt}\n\nIMPORTANT: You must respond with valid, complete JSON only. Do not include any text before or after the JSON. Ensure the JSON is properly closed with all brackets and braces.`;
+      formattedPrompt = `${prompt}\n\nIMPORTANT: You must respond with valid, complete JSON only. Do not wrap the JSON in markdown code blocks or backticks. Do not include any text before or after the JSON. Ensure the JSON is properly closed with all brackets and braces.`;
       if (optsWithDefaults.schema) {
         const jsonSchema = zodToJsonSchema(optsWithDefaults.schema);
         formattedPrompt += `\n\nRequired JSON schema: ${JSON.stringify(jsonSchema)}`;
@@ -425,8 +474,27 @@ class GeminiInferenceClient implements InferenceClient {
     const response = result.response;
     const text = response.text();
 
+    // Extract JSON from markdown code blocks if present (same as text inference)
+    let cleanedText = text;
+    if (
+      (serverConfig.inference.outputSchema === "json" ||
+        optsWithDefaults.schema) &&
+      text.includes("```json")
+    ) {
+      logger.debug(
+        `[GeminiInferenceClient] Detected JSON wrapped in markdown (image), extracting...`,
+      );
+      const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+        cleanedText = jsonMatch[1].trim();
+        logger.debug(
+          `[GeminiInferenceClient] Extracted JSON (image): ${cleanedText.substring(0, 100)}...`,
+        );
+      }
+    }
+
     return {
-      response: text,
+      response: cleanedText,
       totalTokens: response.usageMetadata?.totalTokenCount,
     };
   }
