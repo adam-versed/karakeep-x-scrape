@@ -98,6 +98,27 @@ const allEnv = z.object({
 });
 
 const serverConfigSchema = allEnv.transform((val) => {
+  // Determine which provider is being used and set appropriate defaults
+  const isGemini = !!val.GEMINI_API_KEY;
+  const isOllama = !!val.OLLAMA_BASE_URL;
+
+  // Set provider-specific defaults for model names
+  const textModel =
+    val.INFERENCE_TEXT_MODEL ||
+    (isGemini ? "gemini-1.5-flash" : isOllama ? "llama3" : "gpt-4.1-mini");
+
+  const imageModel =
+    val.INFERENCE_IMAGE_MODEL ||
+    (isGemini ? "gemini-1.5-flash" : isOllama ? "llava" : "gpt-4o-mini");
+
+  const embeddingModel =
+    val.EMBEDDING_TEXT_MODEL ||
+    (isGemini
+      ? "text-embedding-004"
+      : isOllama
+        ? "nomic-embed-text"
+        : "text-embedding-3-small");
+
   return {
     apiUrl: val.API_URL,
     publicUrl: val.NEXTAUTH_URL,
@@ -131,8 +152,8 @@ const serverConfigSchema = allEnv.transform((val) => {
       geminiProjectId: val.GEMINI_PROJECT_ID,
       ollamaBaseUrl: val.OLLAMA_BASE_URL,
       ollamaKeepAlive: val.OLLAMA_KEEP_ALIVE,
-      textModel: val.INFERENCE_TEXT_MODEL,
-      imageModel: val.INFERENCE_IMAGE_MODEL,
+      textModel: textModel,
+      imageModel: imageModel,
       inferredTagLang: val.INFERENCE_LANG,
       contextLength: val.INFERENCE_CONTEXT_LENGTH,
       outputSchema:
@@ -145,7 +166,7 @@ const serverConfigSchema = allEnv.transform((val) => {
       enableAutoSummarization: val.INFERENCE_ENABLE_AUTO_SUMMARIZATION,
     },
     embedding: {
-      textModel: val.EMBEDDING_TEXT_MODEL,
+      textModel: embeddingModel,
     },
     crawler: {
       numWorkers: val.CRAWLER_NUM_WORKERS,
