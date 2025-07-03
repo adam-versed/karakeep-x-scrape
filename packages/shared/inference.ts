@@ -323,10 +323,10 @@ class GeminiInferenceClient implements InferenceClient {
   constructor() {
     this.genAI = new GoogleGenerativeAI(serverConfig.inference.geminiApiKey!);
     this.textModel = this.genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: serverConfig.inference.textModel,
     });
     this.visionModel = this.genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: serverConfig.inference.imageModel,
     });
   }
 
@@ -352,13 +352,18 @@ class GeminiInferenceClient implements InferenceClient {
       }
     }
 
-    const result = await this.textModel.generateContent({
-      contents: [{ role: "user", parts: [{ text: formattedPrompt }] }],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 2048,
+    const result = await this.textModel.generateContent(
+      {
+        contents: [{ role: "user", parts: [{ text: formattedPrompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2048,
+        },
       },
-    });
+      {
+        signal: optsWithDefaults.abortSignal,
+      },
+    );
 
     const response = result.response;
     const text = response.text();
@@ -399,18 +404,23 @@ class GeminiInferenceClient implements InferenceClient {
       },
     };
 
-    const result = await this.visionModel.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: formattedPrompt }, imagePart],
+    const result = await this.visionModel.generateContent(
+      {
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: formattedPrompt }, imagePart],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2048,
         },
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 2048,
       },
-    });
+      {
+        signal: optsWithDefaults.abortSignal,
+      },
+    );
 
     const response = result.response;
     const text = response.text();
@@ -424,9 +434,8 @@ class GeminiInferenceClient implements InferenceClient {
   async generateEmbeddingFromText(
     inputs: string[],
   ): Promise<EmbeddingResponse> {
-    // Gemini uses text-embedding-004 model
     const embeddingModel = this.genAI.getGenerativeModel({
-      model: "text-embedding-004",
+      model: serverConfig.embedding.textModel,
     });
 
     const embeddings = await Promise.all(
