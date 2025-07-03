@@ -345,7 +345,7 @@ class GeminiInferenceClient implements InferenceClient {
       serverConfig.inference.outputSchema === "json" ||
       optsWithDefaults.schema
     ) {
-      formattedPrompt = `${prompt}\n\nRespond with valid JSON only.`;
+      formattedPrompt = `${prompt}\n\nIMPORTANT: You must respond with valid, complete JSON only. Do not include any text before or after the JSON. Ensure the JSON is properly closed with all brackets and braces.`;
       if (optsWithDefaults.schema) {
         const jsonSchema = zodToJsonSchema(optsWithDefaults.schema);
         formattedPrompt += `\n\nRequired JSON schema: ${JSON.stringify(jsonSchema)}`;
@@ -356,8 +356,8 @@ class GeminiInferenceClient implements InferenceClient {
       {
         contents: [{ role: "user", parts: [{ text: formattedPrompt }] }],
         generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
+          temperature: 0.3,
+          maxOutputTokens: 4096,
         },
       },
       {
@@ -390,7 +390,7 @@ class GeminiInferenceClient implements InferenceClient {
       serverConfig.inference.outputSchema === "json" ||
       optsWithDefaults.schema
     ) {
-      formattedPrompt = `${prompt}\n\nRespond with valid JSON only.`;
+      formattedPrompt = `${prompt}\n\nIMPORTANT: You must respond with valid, complete JSON only. Do not include any text before or after the JSON. Ensure the JSON is properly closed with all brackets and braces.`;
       if (optsWithDefaults.schema) {
         const jsonSchema = zodToJsonSchema(optsWithDefaults.schema);
         formattedPrompt += `\n\nRequired JSON schema: ${JSON.stringify(jsonSchema)}`;
@@ -413,8 +413,8 @@ class GeminiInferenceClient implements InferenceClient {
           },
         ],
         generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
+          temperature: 0.3,
+          maxOutputTokens: 4096,
         },
       },
       {
