@@ -98,24 +98,37 @@ const allEnv = z.object({
 });
 
 const serverConfigSchema = allEnv.transform((val) => {
-  // Determine which provider is being used and set appropriate defaults
-  const isGemini = !!val.GEMINI_API_KEY;
-  const isOllama = !!val.OLLAMA_BASE_URL;
+  // Determine active provider using same priority as InferenceClientFactory
+  const activeProvider = val.GEMINI_API_KEY
+    ? "gemini"
+    : val.OPENAI_API_KEY
+      ? "openai"
+      : val.OLLAMA_BASE_URL
+        ? "ollama"
+        : "openai"; // default fallback
 
   // Set provider-specific defaults for model names
   const textModel =
     val.INFERENCE_TEXT_MODEL ||
-    (isGemini ? "gemini-1.5-flash" : isOllama ? "llama3" : "gpt-4.1-mini");
+    (activeProvider === "gemini"
+      ? "gemini-1.5-flash"
+      : activeProvider === "ollama"
+        ? "llama3"
+        : "gpt-4.1-mini");
 
   const imageModel =
     val.INFERENCE_IMAGE_MODEL ||
-    (isGemini ? "gemini-1.5-flash" : isOllama ? "llava" : "gpt-4o-mini");
+    (activeProvider === "gemini"
+      ? "gemini-1.5-flash"
+      : activeProvider === "ollama"
+        ? "llava"
+        : "gpt-4o-mini");
 
   const embeddingModel =
     val.EMBEDDING_TEXT_MODEL ||
-    (isGemini
+    (activeProvider === "gemini"
       ? "text-embedding-004"
-      : isOllama
+      : activeProvider === "ollama"
         ? "nomic-embed-text"
         : "text-embedding-3-small");
 
