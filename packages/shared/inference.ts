@@ -411,7 +411,7 @@ class GeminiInferenceClient implements InferenceClient {
     }
 
     // Check if response looks like truncated JSON
-    if (cleanedText.includes('{"tags":') && !cleanedText.includes("}]")) {
+    if (cleanedText.includes('{"tags":') && !cleanedText.includes("]}")) {
       logger.warn(
         `[GeminiInferenceClient] Detected potentially truncated JSON response`,
       );
