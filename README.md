@@ -25,10 +25,11 @@ Karakeep (previously Hoarder) is a self-hostable bookmark-everything app with a 
 - ⬇️ Automatic fetching for link titles, descriptions and images.
 - 📋 Sort your bookmarks into lists.
 - 🔎 Full text search of all the content stored.
-- ✨ AI-based (aka chatgpt) automatic tagging and summarization. With supports for local models using ollama!
+- ✨ AI-based automatic tagging and summarization. With support for OpenAI, Google Gemini, and local models using Ollama!
 - 🤖 Rule-based engine for customized management.
 - 🎆 OCR for extracting text from images.
 - 🔖 [Chrome plugin](https://chromewebstore.google.com/detail/karakeep/kgcjekpmcjjogibpjebkhaanilehneje) and [Firefox addon](https://addons.mozilla.org/en-US/firefox/addon/karakeep/) for quick bookmarking.
+- 🐦 Enhanced X.com/Twitter scraping with rich media extraction via Apify integration.
 - 📱 An [iOS app](https://apps.apple.com/us/app/karakeep-app/id6479258022), and an [Android app](https://play.google.com/store/apps/details?id=app.hoarder.hoardermobile&pcampaignid=web_share).
 - 📰 Auto hoarding from RSS feeds.
 - 🔌 REST API.
@@ -110,6 +111,25 @@ This fork includes a migration from better-sqlite3 to @libsql/client to resolve 
 
 ### Migration Details:
 The migration affects only the database layer (`packages/db`) and maintains full backward compatibility with existing SQLite databases. The change resolves fundamental async transaction issues that prevented proper operation with Node.js v22.
+
+## Fork Enhancements
+
+This fork includes several enhancements over the base Karakeep project:
+
+### Enhanced X.com/Twitter Scraping
+- **Apify Integration**: Uses Apify's twitter-scraper actor for robust X.com content extraction
+- **Rich Media Support**: Extracts embedded videos, images, and quote tweets
+- **Configurable**: Enable via `ENABLE_ENHANCED_X_SCRAPING=true` environment variable
+- **API Key Required**: Obtain from [Apify Console](https://console.apify.com/)
+
+### Google Gemini AI Support
+- **Alternative AI Provider**: Use Google Gemini Flash 1.5 instead of OpenAI
+- **Cost-Effective**: Competitive pricing with generous free tier
+- **Multimodal**: Native support for text and image inference
+- **Simple Setup**: Only requires API key from [Google AI Studio](https://aistudio.google.com/apikey)
+
+### Configuration
+For detailed configuration of these enhancements, see the [Configuration Guide](https://docs.karakeep.app/configuration) and the included `.env.sample` file. The fork maintains full compatibility with the base project while extending functionality.
 
 ## Support
 
