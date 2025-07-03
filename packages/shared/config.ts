@@ -30,6 +30,8 @@ const allEnv = z.object({
   OAUTH_PROVIDER_NAME: z.string().default("Custom Provider"),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().url().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_PROJECT_ID: z.string().optional(),
   OLLAMA_BASE_URL: z.string().url().optional(),
   OLLAMA_KEEP_ALIVE: z.string().optional(),
   INFERENCE_JOB_TIMEOUT_SEC: z.coerce.number().default(30),
@@ -125,6 +127,8 @@ const serverConfigSchema = allEnv.transform((val) => {
       fetchTimeoutSec: val.INFERENCE_FETCH_TIMEOUT_SEC,
       openAIApiKey: val.OPENAI_API_KEY,
       openAIBaseUrl: val.OPENAI_BASE_URL,
+      geminiApiKey: val.GEMINI_API_KEY,
+      geminiProjectId: val.GEMINI_PROJECT_ID,
       ollamaBaseUrl: val.OLLAMA_BASE_URL,
       ollamaKeepAlive: val.OLLAMA_KEEP_ALIVE,
       textModel: val.INFERENCE_TEXT_MODEL,
@@ -213,6 +217,7 @@ export const clientConfig = {
   inference: {
     isConfigured:
       !!serverConfig.inference.openAIApiKey ||
+      !!serverConfig.inference.geminiApiKey ||
       !!serverConfig.inference.ollamaBaseUrl,
     inferredTagLang: serverConfig.inference.inferredTagLang,
   },

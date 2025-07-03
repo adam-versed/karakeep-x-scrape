@@ -1,3 +1,4 @@
+import { GenerativeModel, GoogleGenerativeAI } from "@google/generative-ai";
 import { Ollama } from "ollama";
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
@@ -53,6 +54,10 @@ const mapInferenceOutputSchema = <
 
 export class InferenceClientFactory {
   static build(): InferenceClient | null {
+    if (serverConfig.inference.geminiApiKey) {
+      return new GeminiInferenceClient();
+    }
+
     if (serverConfig.inference.openAIApiKey) {
       return new OpenAIInferenceClient();
     }
@@ -307,5 +312,130 @@ class OllamaInferenceClient implements InferenceClient {
       truncate: true,
     });
     return { embeddings: embedding.embeddings };
+  }
+}
+
+class GeminiInferenceClient implements InferenceClient {
+  private genAI: GoogleGenerativeAI;
+  private textModel: GenerativeModel;
+  private visionModel: GenerativeModel;
+
+  constructor() {
+    this.genAI = new GoogleGenerativeAI(serverConfig.inference.geminiApiKey!);
+    this.textModel = this.genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+    });
+    this.visionModel = this.genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+    });
+  }
+
+  async inferFromText(
+    prompt: string,
+    _opts: Partial<InferenceOptions>,
+  ): Promise<InferenceResponse> {
+    const optsWithDefaults: InferenceOptions = {
+      ...defaultInferenceOptions,
+      ..._opts,
+    };
+
+    // Handle different output schemas
+    let formattedPrompt = prompt;
+    if (
+      serverConfig.inference.outputSchema === "json" ||
+      optsWithDefaults.schema
+    ) {
+      formattedPrompt = `${prompt}\n\nRespond with valid JSON only.`;
+      if (optsWithDefaults.schema) {
+        const jsonSchema = zodToJsonSchema(optsWithDefaults.schema);
+        formattedPrompt += `\n\nRequired JSON schema: ${JSON.stringify(jsonSchema)}`;
+      }
+    }
+
+    const result = await this.textModel.generateContent({
+      contents: [{ role: "user", parts: [{ text: formattedPrompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 2048,
+      },
+    });
+
+    const response = result.response;
+    const text = response.text();
+
+    return {
+      response: text,
+      totalTokens: response.usageMetadata?.totalTokenCount,
+    };
+  }
+
+  async inferFromImage(
+    prompt: string,
+    contentType: string,
+    image: string,
+    _opts: Partial<InferenceOptions>,
+  ): Promise<InferenceResponse> {
+    const optsWithDefaults: InferenceOptions = {
+      ...defaultInferenceOptions,
+      ..._opts,
+    };
+
+    let formattedPrompt = prompt;
+    if (
+      serverConfig.inference.outputSchema === "json" ||
+      optsWithDefaults.schema
+    ) {
+      formattedPrompt = `${prompt}\n\nRespond with valid JSON only.`;
+      if (optsWithDefaults.schema) {
+        const jsonSchema = zodToJsonSchema(optsWithDefaults.schema);
+        formattedPrompt += `\n\nRequired JSON schema: ${JSON.stringify(jsonSchema)}`;
+      }
+    }
+
+    const imagePart = {
+      inlineData: {
+        data: image,
+        mimeType: contentType,
+      },
+    };
+
+    const result = await this.visionModel.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: formattedPrompt }, imagePart],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 2048,
+      },
+    });
+
+    const response = result.response;
+    const text = response.text();
+
+    return {
+      response: text,
+      totalTokens: response.usageMetadata?.totalTokenCount,
+    };
+  }
+
+  async generateEmbeddingFromText(
+    inputs: string[],
+  ): Promise<EmbeddingResponse> {
+    // Gemini uses text-embedding-004 model
+    const embeddingModel = this.genAI.getGenerativeModel({
+      model: "text-embedding-004",
+    });
+
+    const embeddings = await Promise.all(
+      inputs.map(async (input) => {
+        const result = await embeddingModel.embedContent(input);
+        return result.embedding.values;
+      }),
+    );
+
+    return { embeddings };
   }
 }
