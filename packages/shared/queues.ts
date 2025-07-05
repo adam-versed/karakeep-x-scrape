@@ -65,16 +65,17 @@ export type ZInferenceDescriptionBatchRequest = z.infer<
   typeof zInferenceDescriptionBatchRequestSchema
 >;
 
-export const InferenceDescriptionBatchQueue = new SqliteQueue<ZInferenceDescriptionBatchRequest>(
-  "inference_description_batch_queue",
-  queueDB,
-  {
-    defaultJobArgs: {
-      numRetries: 2,
+export const InferenceDescriptionBatchQueue =
+  new SqliteQueue<ZInferenceDescriptionBatchRequest>(
+    "inference_description_batch_queue",
+    queueDB,
+    {
+      defaultJobArgs: {
+        numRetries: 2,
+      },
+      keepFailedJobs: false,
     },
-    keepFailedJobs: false,
-  },
-);
+  );
 
 // Search Indexing Worker
 export const zSearchIndexingRequestSchema = z.object({

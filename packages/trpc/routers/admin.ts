@@ -7,8 +7,8 @@ import serverConfig from "@karakeep/shared/config";
 import {
   AssetPreprocessingQueue,
   FeedQueue,
-  InferenceQueue,
   InferenceDescriptionBatchQueue,
+  InferenceQueue,
   LinkCrawlerQueue,
   SearchIndexingQueue,
   TidyAssetsQueue,
@@ -269,18 +269,21 @@ export const adminAppRouter = router({
       });
 
       // For description enhancement, use batch processing
-      if (input.type === "enhance-description" && serverConfig.batchDescriptionEnhancement.enabled) {
+      if (
+        input.type === "enhance-description" &&
+        serverConfig.batchDescriptionEnhancement.enabled
+      ) {
         // Chunk bookmarks into batches
         const batchSize = serverConfig.batchDescriptionEnhancement.batchSize;
         const chunks: string[][] = [];
-        
+
         for (let i = 0; i < bookmarkIds.length; i += batchSize) {
-          chunks.push(bookmarkIds.slice(i, i + batchSize).map(b => b.id));
+          chunks.push(bookmarkIds.slice(i, i + batchSize).map((b) => b.id));
         }
-        
+
         // Enqueue batch jobs
         await Promise.all(
-          chunks.map(chunk =>
+          chunks.map((chunk) =>
             InferenceDescriptionBatchQueue.enqueue({
               bookmarkIds: chunk,
               source: "admin",
@@ -291,8 +294,8 @@ export const adminAppRouter = router({
         // Regular individual processing
         await Promise.all(
           bookmarkIds.map((b) =>
-            InferenceQueue.enqueue({ 
-              bookmarkId: b.id, 
+            InferenceQueue.enqueue({
+              bookmarkId: b.id,
               type: input.type,
               source: "admin",
             }),
