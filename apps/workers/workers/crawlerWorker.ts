@@ -54,8 +54,8 @@ import serverConfig from "@karakeep/shared/config";
 import logger from "@karakeep/shared/logger";
 import {
   AssetPreprocessingQueue,
+  InferenceQueue,
   LinkCrawlerQueue,
-  OpenAIQueue,
   triggerSearchReindex,
   triggerVideoWorker,
   triggerWebhook,
@@ -1050,15 +1050,23 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
             );
           };
 
-          // Enqueue openai job (if not set, assume it's true for backward compatibility)
+          // Enqueue inference jobs (if not set, assume it's true for backward compatibility)
           if (job.data.runInference !== false) {
-            await OpenAIQueue.enqueue({
+            await InferenceQueue.enqueue({
               bookmarkId,
               type: "tag",
+              source: "crawler",
             });
-            await OpenAIQueue.enqueue({
+            await InferenceQueue.enqueue({
               bookmarkId,
               type: "summarize",
+              source: "crawler",
+            });
+            // Enhance description for better bookmark list display
+            await InferenceQueue.enqueue({
+              bookmarkId,
+              type: "enhance-description",
+              source: "crawler",
             });
           }
 
@@ -1095,15 +1103,23 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
       job.abortSignal,
     );
 
-    // Enqueue openai job (if not set, assume it's true for backward compatibility)
+    // Enqueue inference jobs (if not set, assume it's true for backward compatibility)
     if (job.data.runInference !== false) {
-      await OpenAIQueue.enqueue({
+      await InferenceQueue.enqueue({
         bookmarkId,
         type: "tag",
+        source: "crawler",
       });
-      await OpenAIQueue.enqueue({
+      await InferenceQueue.enqueue({
         bookmarkId,
         type: "summarize",
+        source: "crawler",
+      });
+      // Enhance description for better bookmark list display
+      await InferenceQueue.enqueue({
+        bookmarkId,
+        type: "enhance-description",
+        source: "crawler",
       });
     }
 

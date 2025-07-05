@@ -29,8 +29,8 @@ import { InferenceClientFactory } from "@karakeep/shared/inference";
 import { buildSummaryPrompt } from "@karakeep/shared/prompts";
 import {
   AssetPreprocessingQueue,
+  InferenceQueue,
   LinkCrawlerQueue,
-  OpenAIQueue,
   triggerRuleEngineOnEvent,
   triggerSearchDeletion,
   triggerSearchReindex,
@@ -405,9 +405,10 @@ export const bookmarksAppRouter = router({
           break;
         }
         case BookmarkTypes.TEXT: {
-          await OpenAIQueue.enqueue({
+          await InferenceQueue.enqueue({
             bookmarkId: bookmark.id,
             type: "tag",
+            source: "api",
           });
           break;
         }

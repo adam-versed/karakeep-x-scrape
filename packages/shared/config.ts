@@ -95,6 +95,11 @@ const allEnv = z.object({
   APIFY_API_KEY: z.string().optional(),
   APIFY_X_SCRAPER_ACTOR_ID: z.string().default("apify/twitter-scraper"),
   ENABLE_ENHANCED_X_SCRAPING: stringBool("false"),
+
+  // Batch Description Enhancement Configuration
+  ENABLE_BATCH_DESCRIPTION_ENHANCEMENT: stringBool("false"),
+  DESCRIPTION_BATCH_SIZE: z.coerce.number().default(40),
+  DESCRIPTION_BATCH_TIMEOUT_MS: z.coerce.number().default(5000),
 });
 
 const serverConfigSchema = allEnv.transform((val) => {
@@ -234,6 +239,11 @@ const serverConfigSchema = allEnv.transform((val) => {
         xScraperActorId: val.APIFY_X_SCRAPER_ACTOR_ID,
         enabled: val.ENABLE_ENHANCED_X_SCRAPING,
       },
+    },
+    batchDescriptionEnhancement: {
+      enabled: val.ENABLE_BATCH_DESCRIPTION_ENHANCEMENT,
+      batchSize: val.DESCRIPTION_BATCH_SIZE,
+      batchTimeoutMs: val.DESCRIPTION_BATCH_TIMEOUT_MS,
     },
   };
 });

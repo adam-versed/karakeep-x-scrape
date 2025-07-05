@@ -18,7 +18,7 @@ import serverConfig from "@karakeep/shared/config";
 import logger from "@karakeep/shared/logger";
 import {
   AssetPreprocessingQueue,
-  OpenAIQueue,
+  InferenceQueue,
   triggerSearchReindex,
 } from "@karakeep/shared/queues";
 
@@ -328,9 +328,10 @@ async function run(req: DequeuedJob<AssetPreprocessingRequest>) {
   }
 
   if (!isFixMode || anythingChanged) {
-    await OpenAIQueue.enqueue({
+    await InferenceQueue.enqueue({
       bookmarkId,
       type: "tag",
+      source: "api",
     });
 
     // Update the search index

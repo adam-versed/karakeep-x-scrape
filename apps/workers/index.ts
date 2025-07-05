@@ -8,7 +8,9 @@ import { shutdownPromise } from "./exit";
 import { AssetPreprocessingWorker } from "./workers/assetPreprocessingWorker";
 import { CrawlerWorker } from "./workers/crawlerWorker";
 import { FeedRefreshingWorker, FeedWorker } from "./workers/feedWorker";
-import { OpenAiWorker } from "./workers/inference/inferenceWorker";
+import { descriptionBatchCollector } from "./workers/inference/descriptionBatchCollector";
+import { DescriptionBatchWorker } from "./workers/inference/descriptionBatchWorker";
+import { InferenceWorker } from "./workers/inference/inferenceWorker";
 import { RuleEngineWorker } from "./workers/ruleEngineWorker";
 import { SearchIndexingWorker } from "./workers/searchWorker";
 import { TidyAssetsWorker } from "./workers/tidyAssetsWorker";
@@ -22,6 +24,7 @@ async function main() {
   const [
     crawler,
     inference,
+    descriptionBatch,
     search,
     tidyAssets,
     video,
@@ -31,7 +34,8 @@ async function main() {
     ruleEngine,
   ] = [
     await CrawlerWorker.build(),
-    OpenAiWorker.build(),
+    InferenceWorker.build(),
+    DescriptionBatchWorker.build(),
     SearchIndexingWorker.build(),
     TidyAssetsWorker.build(),
     VideoWorker.build(),
@@ -46,6 +50,7 @@ async function main() {
     Promise.all([
       crawler.run(),
       inference.run(),
+      descriptionBatch.run(),
       search.run(),
       tidyAssets.run(),
       video.run(),
@@ -57,12 +62,17 @@ async function main() {
     shutdownPromise,
   ]);
   logger.info(
-    "Shutting down crawler, inference, tidyAssets, video, feed, assetPreprocessing, webhook, ruleEngine and search workers ...",
+    "Shutting down crawler, inference, descriptionBatch, tidyAssets, video, feed, assetPreprocessing, webhook, ruleEngine and search workers ...",
   );
 
   FeedRefreshingWorker.stop();
+
+  // Ensure any pending batches are flushed before stopping
+  await descriptionBatchCollector.shutdown();
+
   crawler.stop();
   inference.stop();
+  descriptionBatch.stop();
   search.stop();
   tidyAssets.stop();
   video.stop();

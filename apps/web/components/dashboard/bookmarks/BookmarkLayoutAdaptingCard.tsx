@@ -162,7 +162,7 @@ function GridView({
       className={cn(
         "relative flex flex-col overflow-hidden rounded-lg",
         className,
-        fitHeight && layout != "grid" ? "max-h-96" : "h-96",
+        fitHeight && layout != "grid" ? "max-h-96" : "h-[450px]",
       )}
     >
       <MultiBookmarkSelector bookmark={bookmark} />
@@ -174,7 +174,7 @@ function GridView({
               {title}
             </div>
           )}
-          {content && <div className="shrink-1 overflow-hidden">{content}</div>}
+          {content && <div className="shrink-1">{content}</div>}
           <div className="flex shrink-0 flex-wrap gap-1 overflow-hidden">
             <TagList
               className={wrapTags ? undefined : "h-full"}

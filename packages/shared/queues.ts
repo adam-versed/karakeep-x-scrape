@@ -33,18 +33,44 @@ export const LinkCrawlerQueue = new SqliteQueue<ZCrawlLinkRequest>(
 );
 
 // Inference Worker
-export const zOpenAIRequestSchema = z.object({
+export const zInferenceRequestSchema = z.object({
   bookmarkId: z.string(),
-  type: z.enum(["summarize", "tag"]).default("tag"),
+  type: z.enum(["summarize", "tag", "enhance-description"]).default("tag"),
+  source: z.enum(["admin", "api", "crawler"]).optional().default("crawler"),
 });
-export type ZOpenAIRequest = z.infer<typeof zOpenAIRequestSchema>;
+export type ZInferenceRequest = z.infer<typeof zInferenceRequestSchema>;
 
-export const OpenAIQueue = new SqliteQueue<ZOpenAIRequest>(
-  "openai_queue",
+export const InferenceQueue = new SqliteQueue<ZInferenceRequest>(
+  "openai_queue", // Keep the same queue name for backward compatibility
   queueDB,
   {
     defaultJobArgs: {
       numRetries: 3,
+    },
+    keepFailedJobs: false,
+  },
+);
+
+// Legacy exports for backward compatibility
+export const zOpenAIRequestSchema = zInferenceRequestSchema;
+export type ZOpenAIRequest = ZInferenceRequest;
+export const OpenAIQueue = InferenceQueue;
+
+// Batch Description Enhancement
+export const zInferenceDescriptionBatchRequestSchema = z.object({
+  bookmarkIds: z.array(z.string()).max(40),
+  source: z.enum(["admin", "api", "crawler"]).default("admin"),
+});
+export type ZInferenceDescriptionBatchRequest = z.infer<
+  typeof zInferenceDescriptionBatchRequestSchema
+>;
+
+export const InferenceDescriptionBatchQueue = new SqliteQueue<ZInferenceDescriptionBatchRequest>(
+  "inference_description_batch_queue",
+  queueDB,
+  {
+    defaultJobArgs: {
+      numRetries: 2,
     },
     keepFailedJobs: false,
   },

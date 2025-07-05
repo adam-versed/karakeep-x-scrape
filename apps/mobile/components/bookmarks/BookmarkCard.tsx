@@ -241,6 +241,11 @@ function LinkCard({
         >
           {bookmark.title ?? bookmark.content.title ?? parsedUrl.host}
         </Text>
+        {bookmark.content.description && (
+          <Text className="line-clamp-3 text-sm text-gray-600 dark:text-gray-400">
+            {bookmark.content.description}
+          </Text>
+        )}
         <TagList bookmark={bookmark} />
         <Divider orientation="vertical" className="mt-2 h-0.5 w-full" />
         <View className="mt-2 flex flex-row justify-between px-2 pb-2">

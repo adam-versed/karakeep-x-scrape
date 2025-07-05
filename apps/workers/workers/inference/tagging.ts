@@ -4,7 +4,7 @@ import { buildImpersonatingTRPCClient } from "trpc";
 import { z } from "zod";
 
 import type { InferenceClient } from "@karakeep/shared/inference";
-import type { ZOpenAIRequest } from "@karakeep/shared/queues";
+import type { ZInferenceRequest } from "@karakeep/shared/queues";
 import { db } from "@karakeep/db";
 import {
   bookmarks,
@@ -361,7 +361,7 @@ async function fetchBookmark(linkId: string) {
 
 export async function runTagging(
   bookmarkId: string,
-  job: DequeuedJob<ZOpenAIRequest>,
+  job: DequeuedJob<ZInferenceRequest>,
   inferenceClient: InferenceClient,
 ) {
   if (!serverConfig.inference.enableAutoTagging) {

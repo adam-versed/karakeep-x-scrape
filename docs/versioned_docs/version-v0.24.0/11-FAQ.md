@@ -21,13 +21,13 @@ If you are an administrator and lost your password, you have to reset the passwo
 
 To reset the password:
 
-* Acquire some kind of tools that helps you to connect to the database:
-  * `sqlite3` on Linux: run `apt-get install sqlite3` (depending on your package manager)
-  * e.g. `dbeaver` on Windows
+* Acquire database tools that support libSQL format:
+  * GUI tools like `dbeaver` or other libSQL-compatible database managers
+  * Command-line tools that support libSQL format
 * Shut down Karakeep
 * Connect to the `db.db` database, which is located in the `data` directory you have mounted to your docker container:
-  * by e.g. running `sqlite3 db.db` (in your `data` directory)
-  * or going through e.g. the `dbeaver` UI to locate the file in the data directory and connecting to it
+  * by using your chosen libSQL-compatible tool to connect to the database file
+  * or using a GUI tool to locate the file in the data directory and connecting to it
 * Update the password in the database by running:
   * `update user set password='$2a$10$5u40XUq/cD/TmLdCOyZ82ePENE6hpkbodJhsp7.e/BgZssUO5DDTa' where email='<YOUR_EMAIL_HERE>';`
   * (don't forget to put your email address into the command)

@@ -97,6 +97,13 @@ export default function LinkCard({
   return (
     <BookmarkLayoutAdaptingCard
       title={<LinkTitle bookmark={bookmarkLink} />}
+      content={
+        bookmarkLink.content.description ? (
+          <p className="line-clamp-3 text-sm text-gray-600 dark:text-gray-400">
+            {bookmarkLink.content.description}
+          </p>
+        ) : null
+      }
       footer={<FooterLinkURL url={getSourceUrl(bookmarkLink)} />}
       bookmark={bookmarkLink}
       wrapTags={false}

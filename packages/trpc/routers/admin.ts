@@ -7,8 +7,9 @@ import serverConfig from "@karakeep/shared/config";
 import {
   AssetPreprocessingQueue,
   FeedQueue,
+  InferenceQueue,
+  InferenceDescriptionBatchQueue,
   LinkCrawlerQueue,
-  OpenAIQueue,
   SearchIndexingQueue,
   TidyAssetsQueue,
   triggerReprocessingFixMode,
@@ -125,7 +126,7 @@ export const adminAppRouter = router({
         SearchIndexingQueue.stats(),
 
         // Inference
-        OpenAIQueue.stats(),
+        InferenceQueue.stats(),
         ctx.db
           .select({ value: count() })
           .from(bookmarks)
@@ -243,7 +244,7 @@ export const adminAppRouter = router({
   reRunInferenceOnAllBookmarks: adminProcedure
     .input(
       z.object({
-        type: z.enum(["tag", "summarize"]),
+        type: z.enum(["tag", "summarize", "enhance-description"]),
         status: z.enum(["success", "failure", "all"]),
       }),
     )
@@ -261,14 +262,43 @@ export const adminAppRouter = router({
             input.status === "all"
               ? {}
               : { where: eq(bookmarks.summarizationStatus, input.status) },
+          "enhance-description":
+            // Description enhancement has no status field, so always process all bookmarks
+            {},
         }[input.type],
       });
 
-      await Promise.all(
-        bookmarkIds.map((b) =>
-          OpenAIQueue.enqueue({ bookmarkId: b.id, type: input.type }),
-        ),
-      );
+      // For description enhancement, use batch processing
+      if (input.type === "enhance-description" && serverConfig.batchDescriptionEnhancement.enabled) {
+        // Chunk bookmarks into batches
+        const batchSize = serverConfig.batchDescriptionEnhancement.batchSize;
+        const chunks: string[][] = [];
+        
+        for (let i = 0; i < bookmarkIds.length; i += batchSize) {
+          chunks.push(bookmarkIds.slice(i, i + batchSize).map(b => b.id));
+        }
+        
+        // Enqueue batch jobs
+        await Promise.all(
+          chunks.map(chunk =>
+            InferenceDescriptionBatchQueue.enqueue({
+              bookmarkIds: chunk,
+              source: "admin",
+            }),
+          ),
+        );
+      } else {
+        // Regular individual processing
+        await Promise.all(
+          bookmarkIds.map((b) =>
+            InferenceQueue.enqueue({ 
+              bookmarkId: b.id, 
+              type: input.type,
+              source: "admin",
+            }),
+          ),
+        );
+      }
     }),
   tidyAssets: adminProcedure.mutation(async () => {
     await TidyAssetsQueue.enqueue({

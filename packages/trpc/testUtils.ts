@@ -76,6 +76,10 @@ export function defaultBeforeEach(seedDB = true) {
       LinkCrawlerQueue: {
         enqueue: vi.fn(),
       },
+      InferenceQueue: {
+        enqueue: vi.fn(),
+      },
+      // Legacy export for backward compatibility
       OpenAIQueue: {
         enqueue: vi.fn(),
       },
