@@ -20,6 +20,10 @@ import {
   ZVideoRequest,
   zvideoRequestSchema,
 } from "@karakeep/shared/queues";
+import {
+  sanitizeCommandArgs,
+  validateAndSanitizeUrl,
+} from "@karakeep/shared/validation";
 
 import { withTimeout } from "../utils";
 import { getBookmarkDetails, updateAsset } from "../workerUtils";
@@ -63,7 +67,10 @@ export class VideoWorker {
 }
 
 function prepareYtDlpArguments(url: string, assetPath: string) {
-  const ytDlpArguments = [url];
+  // Validate and sanitize the URL to prevent command injection
+  const sanitizedUrl = validateAndSanitizeUrl(url);
+
+  const ytDlpArguments = [sanitizedUrl];
   if (serverConfig.crawler.maxVideoDownloadSize > 0) {
     ytDlpArguments.push(
       "-f",
@@ -71,7 +78,11 @@ function prepareYtDlpArguments(url: string, assetPath: string) {
     );
   }
 
-  ytDlpArguments.push(...serverConfig.crawler.ytDlpArguments);
+  // Sanitize server config arguments
+  const sanitizedServerArgs = sanitizeCommandArgs(
+    serverConfig.crawler.ytDlpArguments,
+  );
+  ytDlpArguments.push(...sanitizedServerArgs);
   ytDlpArguments.push("-o", assetPath);
   ytDlpArguments.push("--no-playlist");
   return ytDlpArguments;

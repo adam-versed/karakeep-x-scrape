@@ -1,14 +1,11 @@
-import * as dns from "dns";
 import { promises as fs } from "fs";
 import * as path from "node:path";
 import * as os from "os";
 import { PlaywrightBlocker } from "@ghostery/adblocker-playwright";
 import { Readability } from "@mozilla/readability";
-import { Mutex } from "async-mutex";
 import DOMPurify from "dompurify";
 import { eq } from "drizzle-orm";
 import { execa } from "execa";
-import { isShuttingDown } from "exit";
 import { JSDOM, VirtualConsole } from "jsdom";
 import { DequeuedJob, Runner } from "liteque";
 import metascraper from "metascraper";
@@ -23,7 +20,6 @@ import metascraperTitle from "metascraper-title";
 import metascraperTwitter from "metascraper-twitter";
 import metascraperUrl from "metascraper-url";
 import fetch from "node-fetch";
-import { Browser } from "playwright";
 import { chromium } from "playwright-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { withTimeout } from "utils";
@@ -67,6 +63,7 @@ import { isXComUrl } from "@karakeep/shared/utils/xcom";
 
 import metascraperReddit from "../metascraper-plugins/metascraper-reddit";
 import metascraperX from "../metascraper-plugins/metascraper-x";
+import { browserPool } from "../utils/browserPool";
 
 const metascraperParser = metascraper([
   metascraperDate({
@@ -86,77 +83,9 @@ const metascraperParser = metascraper([
   metascraperUrl(),
 ]);
 
-let globalBrowser: Browser | undefined;
 let globalBlocker: PlaywrightBlocker | undefined;
-// Guards the interactions with the browser instance.
-// This is needed given that most of the browser APIs are async.
-const browserMutex = new Mutex();
 
-async function startBrowserInstance() {
-  if (serverConfig.crawler.browserWebSocketUrl) {
-    logger.info(
-      `[Crawler] Connecting to existing browser websocket address: ${serverConfig.crawler.browserWebSocketUrl}`,
-    );
-    return await chromium.connect(serverConfig.crawler.browserWebSocketUrl, {
-      // Important: using slowMo to ensure stability with remote browser
-      slowMo: 100,
-      timeout: 5000,
-    });
-  } else if (serverConfig.crawler.browserWebUrl) {
-    logger.info(
-      `[Crawler] Connecting to existing browser instance: ${serverConfig.crawler.browserWebUrl}`,
-    );
-
-    const webUrl = new URL(serverConfig.crawler.browserWebUrl);
-    const { address } = await dns.promises.lookup(webUrl.hostname);
-    webUrl.hostname = address;
-    logger.info(
-      `[Crawler] Successfully resolved IP address, new address: ${webUrl.toString()}`,
-    );
-
-    return await chromium.connectOverCDP(webUrl.toString(), {
-      // Important: using slowMo to ensure stability with remote browser
-      slowMo: 100,
-      timeout: 5000,
-    });
-  } else {
-    logger.info(`Running in browserless mode`);
-    return undefined;
-  }
-}
-
-async function launchBrowser() {
-  globalBrowser = undefined;
-  await browserMutex.runExclusive(async () => {
-    try {
-      globalBrowser = await startBrowserInstance();
-    } catch (e) {
-      logger.error(
-        `[Crawler] Failed to connect to the browser instance, will retry in 5 secs: ${(e as Error).stack}`,
-      );
-      if (isShuttingDown) {
-        logger.info("[Crawler] We're shutting down so won't retry.");
-        return;
-      }
-      setTimeout(() => {
-        launchBrowser();
-      }, 5000);
-      return;
-    }
-    globalBrowser?.on("disconnected", () => {
-      if (isShuttingDown) {
-        logger.info(
-          "[Crawler] The Playwright browser got disconnected. But we're shutting down so won't restart it.",
-        );
-        return;
-      }
-      logger.info(
-        "[Crawler] The Playwright browser got disconnected. Will attempt to launch it again.",
-      );
-      launchBrowser();
-    });
-  });
-}
+// Browser management is now handled by browserPool
 
 export class CrawlerWorker {
   static async build() {
@@ -175,12 +104,12 @@ export class CrawlerWorker {
         );
       }
     }
-    if (!serverConfig.crawler.browserConnectOnDemand) {
-      await launchBrowser();
-    } else {
-      logger.info(
-        "[Crawler] Browser connect on demand is enabled, won't proactively start the browser instance",
-      );
+    // Initialize browser pool
+    try {
+      await browserPool.initialize();
+      logger.info("[Crawler] Browser pool initialized successfully");
+    } catch (error) {
+      logger.error("[Crawler] Failed to initialize browser pool:", error);
     }
 
     logger.info("Starting crawler worker ...");
@@ -283,26 +212,21 @@ async function crawlPage(
   statusCode: number;
   url: string;
 }> {
-  let browser: Browser | undefined;
-  if (serverConfig.crawler.browserConnectOnDemand) {
-    browser = await startBrowserInstance();
-  } else {
-    browser = globalBrowser;
-  }
-  if (!browser) {
+  // Acquire a browser context from the pool
+  const context = await browserPool.acquireContext();
+
+  if (!context) {
+    logger.info(
+      `[Crawler][${jobId}] No browser context available, falling back to browserless mode`,
+    );
     return browserlessCrawlPage(jobId, url, abortSignal);
   }
 
-  const context = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
-    userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  });
   try {
     // Create a new page in the context
     const page = await context.newPage();
 
-    // Apply ad blocking
+    // Apply ad blocking if available
     if (globalBlocker) {
       await globalBlocker.enableBlockingInPage(page);
     }
@@ -367,11 +291,8 @@ async function crawlPage(
       url: page.url(),
     };
   } finally {
-    await context.close();
-    // Only close the browser if it was created on demand
-    if (serverConfig.crawler.browserConnectOnDemand) {
-      await browser.close();
-    }
+    // Release the context back to the pool
+    await browserPool.releaseContext(context);
   }
 }
 

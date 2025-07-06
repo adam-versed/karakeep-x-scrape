@@ -24,7 +24,9 @@ export default function BrokenLinksPage() {
   const { t } = useTranslation();
 
   const apiUtils = api.useUtils();
-  const { data, isPending } = api.bookmarks.getBrokenLinks.useQuery();
+  const { data, isPending } = api.bookmarks.getBrokenLinks.useQuery({
+    limit: 20,
+  });
 
   const { mutate: deleteBookmark, isPending: isDeleting } = useDeleteBookmark({
     onSuccess: () => {
