@@ -12,9 +12,10 @@ import { zGetBookmarkQueryParamsSchema } from "../utils/types";
 
 const app = new Hono()
   .use(authMiddleware)
-  .get("/", async (c) => {
-    const lists = await c.var.api.lists.list();
-    return c.json(lists, 200);
+  .get("/", zValidator("query", zPagination), async (c) => {
+    const { limit = 20, cursor } = c.req.valid("query");
+    const lists = await c.var.api.lists.list({ limit, cursor });
+    return c.json(adaptPagination(lists), 200);
   })
   .post("/", zValidator("json", zNewBookmarkListSchema), async (c) => {
     const body = c.req.valid("json");

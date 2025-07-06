@@ -47,6 +47,11 @@ export class DescriptionBatchCollector {
 
     // Check if we've reached batch size
     if (this.pendingBookmarks.size >= this.batchSize) {
+      // Clear timer before flushing to prevent race condition
+      if (this.batchTimer) {
+        clearTimeout(this.batchTimer);
+        this.batchTimer = null;
+      }
       await this.flushBatch(source);
       return;
     }
@@ -60,14 +65,15 @@ export class DescriptionBatchCollector {
   }
 
   private async flushBatch(source: "admin" | "crawler"): Promise<void> {
-    if (this.pendingBookmarks.size === 0) {
-      return;
-    }
-
-    // Clear timer
+    // Clear timer first to prevent race conditions
     if (this.batchTimer) {
       clearTimeout(this.batchTimer);
       this.batchTimer = null;
+    }
+
+    // Check if there are any bookmarks to process
+    if (this.pendingBookmarks.size === 0) {
+      return;
     }
 
     // Extract bookmark IDs
@@ -88,10 +94,16 @@ export class DescriptionBatchCollector {
       );
     } catch (error) {
       logger.error(
-        `[DescriptionBatchCollector] Failed to enqueue batch: ${error}`,
+        `[DescriptionBatchCollector] Failed to enqueue batch of ${bookmarkIds.length} bookmarks: ${error}`,
       );
-      // In case of failure, we lose these bookmarks - they won't get descriptions
-      // This is acceptable as description enhancement is not critical
+      
+      // TODO: Implement retry mechanism or fallback to individual processing
+      // For now, log the failed bookmark IDs for potential manual recovery
+      logger.warn(
+        `[DescriptionBatchCollector] Lost batch of bookmark IDs: ${bookmarkIds.join(', ')}`
+      );
+      
+      // Description enhancement is not critical, so we continue without throwing
     }
   }
 

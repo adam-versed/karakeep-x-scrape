@@ -1,3 +1,4 @@
+import * as crypto from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -12,6 +13,7 @@ import {
 } from "@karakeep/shared/assetdb";
 import serverConfig from "@karakeep/shared/config";
 import { AuthedContext } from "@karakeep/trpc";
+import { safePathJoin } from "@karakeep/shared/validation";
 
 const MAX_UPLOAD_SIZE_BYTES = serverConfig.maxAssetSizeMb * 1024 * 1024;
 
@@ -58,7 +60,20 @@ export async function uploadAsset(
   }
 
   const contentType = data.type;
-  const fileName = data.name;
+  let fileName = data.name;
+  
+  // Sanitize filename to prevent path traversal
+  if (fileName) {
+    // Remove directory separators and null bytes
+    // eslint-disable-next-line no-control-regex
+    fileName = path.basename(fileName).replace(/[\0]/g, "");
+    // Limit filename length
+    if (fileName.length > 255) {
+      const ext = path.extname(fileName);
+      fileName = fileName.substring(0, 255 - ext.length) + ext;
+    }
+  }
+  
   if (!SUPPORTED_UPLOAD_ASSET_TYPES.has(contentType)) {
     return { error: "Unsupported asset type", status: 400 };
   }
@@ -69,7 +84,10 @@ export async function uploadAsset(
   let tempFilePath: string | undefined;
 
   try {
-    tempFilePath = path.join(os.tmpdir(), `karakeep-upload-${Date.now()}`);
+    // Create secure temporary file path
+    const tempId = crypto.randomUUID();
+    tempFilePath = safePathJoin(os.tmpdir(), `karakeep-upload-${tempId}`);
+    
     await pipeline(
       webStreamToNode(data.stream()),
       fs.createWriteStream(tempFilePath),

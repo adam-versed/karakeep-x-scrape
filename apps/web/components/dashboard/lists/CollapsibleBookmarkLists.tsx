@@ -89,7 +89,9 @@ export function CollapsibleBookmarkLists({
   className?: string;
 }) {
   let { data } = useBookmarkLists(undefined, {
-    initialData: initialData ? { lists: initialData } : undefined,
+    initialData: initialData
+      ? { lists: initialData, nextCursor: null }
+      : undefined,
   });
 
   // TODO: This seems to be a bug in react query

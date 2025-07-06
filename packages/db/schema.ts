@@ -137,6 +137,10 @@ export const bookmarks = sqliteTable(
     index("bookmarks_archived_idx").on(b.archived),
     index("bookmarks_favourited_idx").on(b.favourited),
     index("bookmarks_createdAt_idx").on(b.createdAt),
+    // Composite indexes for performance
+    index("bookmarks_userId_createdAt_idx").on(b.userId, b.createdAt),
+    index("bookmarks_userId_archived_idx").on(b.userId, b.archived),
+    index("bookmarks_userId_favourited_idx").on(b.userId, b.favourited),
   ],
 );
 
@@ -167,7 +171,10 @@ export const bookmarkLinks = sqliteTable(
     }).default("pending"),
     crawlStatusCode: integer("crawlStatusCode").default(200),
   },
-  (bl) => [index("bookmarkLinks_url_idx").on(bl.url)],
+  (bl) => [
+    index("bookmarkLinks_url_idx").on(bl.url),
+    index("bookmarkLinks_crawlStatus_idx").on(bl.crawlStatus),
+  ],
 );
 
 export const enum AssetTypes {
@@ -405,7 +412,10 @@ export const rssFeedsTable = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
   },
-  (bl) => [index("rssFeeds_userId_idx").on(bl.userId)],
+  (bl) => [
+    index("rssFeeds_userId_idx").on(bl.userId),
+    index("rssFeeds_enabled_idx").on(bl.enabled),
+  ],
 );
 
 export const webhooksTable = sqliteTable(

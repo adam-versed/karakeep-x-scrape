@@ -15,18 +15,26 @@ export async function createContextFromRequest(req: Request) {
   });
   const authorizationHeader = req.headers.get("Authorization");
   if (authorizationHeader && authorizationHeader.startsWith("Bearer ")) {
-    const token = authorizationHeader.split(" ")[1];
-    try {
-      const user = await authenticateApiKey(token);
-      return {
-        user,
-        db,
-        req: {
-          ip,
-        },
-      };
-    } catch {
-      // Fallthrough to cookie-based auth
+    // Extract token with proper validation
+    const parts = authorizationHeader.split(" ");
+    if (parts.length === 2 && parts[0] === "Bearer") {
+      const token = parts[1];
+
+      // Basic token format validation before attempting authentication
+      if (token && token.length > 0 && token.length <= 512) {
+        try {
+          const user = await authenticateApiKey(token);
+          return {
+            user,
+            db,
+            req: {
+              ip,
+            },
+          };
+        } catch {
+          // Fallthrough to cookie-based auth
+        }
+      }
     }
   }
 

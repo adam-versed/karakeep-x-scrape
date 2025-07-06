@@ -1,13 +1,14 @@
 import { vi } from "vitest";
+import { sql } from "drizzle-orm";
 
 import { getInMemoryDB } from "@karakeep/db/drizzle";
-import { users } from "@karakeep/db/schema";
+import { users, bookmarks, bookmarkTags, bookmarkTags as tags, bookmarkLists as lists, apiKeys } from "@karakeep/db/schema";
 
 import { createCallerFactory } from "./index";
 import { appRouter } from "./routers/_app";
 
 export function getTestDB() {
-  return getInMemoryDB(true);
+  return getInMemoryDB(true); // Use migrations for tests
 }
 
 export type TestDB = ReturnType<typeof getTestDB>;

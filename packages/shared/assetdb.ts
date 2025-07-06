@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import serverConfig from "./config";
 import logger from "./logger";
+import { validateAssetId, validateUserId, safePathJoin } from "./validation";
 
 const ROOT_PATH = serverConfig.assetsDir;
 
@@ -44,7 +45,12 @@ export const SUPPORTED_ASSET_TYPES: Set<string> = new Set<string>([
 ]);
 
 function getAssetDir(userId: string, assetId: string) {
-  return path.join(ROOT_PATH, userId, assetId);
+  // Validate inputs to prevent path traversal
+  const validUserId = validateUserId(userId);
+  const validAssetId = validateAssetId(assetId);
+  
+  // Use safe path construction
+  return safePathJoin(ROOT_PATH, validUserId, validAssetId);
 }
 
 export const zAssetMetadataSchema = z.object({
@@ -210,7 +216,10 @@ export async function deleteAsset({
 }
 
 export async function deleteUserAssets({ userId }: { userId: string }) {
-  const userDir = path.join(ROOT_PATH, userId);
+  // Validate user ID to prevent path traversal
+  const validUserId = validateUserId(userId);
+  const userDir = safePathJoin(ROOT_PATH, validUserId);
+  
   const dirExists = await fs.promises
     .access(userDir)
     .then(() => true)

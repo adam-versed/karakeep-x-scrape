@@ -14,9 +14,10 @@ const app = new Hono()
   .use(authMiddleware)
 
   // GET /tags
-  .get("/", async (c) => {
-    const tags = await c.var.api.tags.list();
-    return c.json(tags, 200);
+  .get("/", zValidator("query", zPagination), async (c) => {
+    const { limit = 20, cursor } = c.req.valid("query");
+    const tags = await c.var.api.tags.list({ limit, cursor });
+    return c.json(adaptPagination(tags), 200);
   })
 
   // POST /tags

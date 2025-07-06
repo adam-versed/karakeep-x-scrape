@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, count, eq, or } from "drizzle-orm";
+import { and, count, eq, or, desc, asc, gt, lt } from "drizzle-orm";
 import invariant from "tiny-invariant";
 import { z } from "zod";
 
@@ -14,7 +14,7 @@ import {
   zEditBookmarkListSchemaWithValidation,
   zNewBookmarkListSchema,
 } from "@karakeep/shared/types/lists";
-import { ZCursor } from "@karakeep/shared/types/pagination";
+import type { ZCursor } from "@karakeep/shared/types/pagination";
 
 import { AuthedContext, Context } from "..";
 import { buildImpersonatingAuthedContext } from "../lib/impersonate";
@@ -167,14 +167,52 @@ export abstract class List implements PrivacyAware {
     return this.fromData(ctx, result);
   }
 
-  static async getAll(ctx: AuthedContext): Promise<(ManualList | SmartList)[]> {
+  static async getAll(
+    ctx: AuthedContext, 
+    options?: { limit?: number; cursor?: ZCursor }
+  ): Promise<{
+    lists: (ManualList | SmartList)[];
+    nextCursor: ZCursor | null;
+  }> {
+    const limit = options?.limit ?? 20;
+    const cursor = options?.cursor;
+
+    let whereCondition = eq(bookmarkLists.userId, ctx.user.id);
+
+    if (cursor) {
+      const cursorCondition = or(
+        lt(bookmarkLists.createdAt, cursor.createdAt),
+        and(
+          eq(bookmarkLists.createdAt, cursor.createdAt),
+          gt(bookmarkLists.id, cursor.id)
+        )
+      );
+      whereCondition = and(whereCondition, cursorCondition!) as any;
+    }
+
     const lists = await ctx.db.query.bookmarkLists.findMany({
       columns: {
         rssToken: false,
       },
-      where: and(eq(bookmarkLists.userId, ctx.user.id)),
+      where: whereCondition,
+      orderBy: [desc(bookmarkLists.createdAt), asc(bookmarkLists.id)],
+      limit: limit + 1, // Get one extra to check if there are more
     });
-    return lists.map((l) => this.fromData(ctx, l));
+
+    const hasMore = lists.length > limit;
+    const items = hasMore ? lists.slice(0, limit) : lists;
+
+    const nextCursor = hasMore && items.length > 0 
+      ? {
+          id: items[items.length - 1].id,
+          createdAt: items[items.length - 1].createdAt,
+        }
+      : null;
+
+    return {
+      lists: items.map((l) => this.fromData(ctx, l)),
+      nextCursor,
+    };
   }
 
   static async forBookmark(ctx: AuthedContext, bookmarkId: string) {

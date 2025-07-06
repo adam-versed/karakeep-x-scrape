@@ -100,7 +100,7 @@ export default function AllTagsView({
   }
 
   const { data } = api.tags.list.useQuery(undefined, {
-    initialData: { tags: initialData },
+    initialData: { tags: initialData, nextCursor: null },
   });
 
   useEffect(() => {

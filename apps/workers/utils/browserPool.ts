@@ -17,6 +17,9 @@ class BrowserPool {
   private maxContexts = 5; // Maximum number of contexts to pool
   private reconnecting = false;
   private initializationPromise: Promise<void> | null = null;
+  private reconnectAttempts = 0;
+  private readonly maxReconnectAttempts = 10;
+  private readonly baseReconnectDelay = 1000; // 1 second
 
   async initialize(): Promise<void> {
     if (this.initializationPromise) {
@@ -77,19 +80,41 @@ class BrowserPool {
       return;
     }
 
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      logger.error(
+        `[BrowserPool] Maximum reconnection attempts (${this.maxReconnectAttempts}) reached. Stopping reconnection attempts.`,
+      );
+      return;
+    }
+
     this.reconnecting = true;
+    this.reconnectAttempts++;
 
     try {
       // Clean up existing contexts
       await this.cleanup();
 
-      // Wait a bit before reconnecting
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Exponential backoff with jitter
+      const delay = Math.min(
+        this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
+        30000, // Cap at 30 seconds
+      );
+      const jitter = Math.random() * 0.1 * delay; // Add up to 10% jitter
+      const totalDelay = delay + jitter;
+
+      logger.info(
+        `[BrowserPool] Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${Math.round(totalDelay)}ms`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, totalDelay));
 
       // Reinitialize browser
       this.browser = await this.startBrowserInstance();
 
       if (this.browser) {
+        // Reset attempt counter on successful reconnection
+        this.reconnectAttempts = 0;
+        logger.info("[BrowserPool] Successfully reconnected browser");
+        
         this.browser.on("disconnected", () => {
           logger.warn(
             "[BrowserPool] Browser disconnected, will attempt to reconnect",
@@ -98,7 +123,15 @@ class BrowserPool {
         });
       }
     } catch (error) {
-      logger.error("[BrowserPool] Failed to reconnect browser:", error);
+      logger.error(
+        `[BrowserPool] Failed to reconnect browser (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}):`,
+        error,
+      );
+      
+      // If we haven't reached max attempts, schedule another retry
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        setTimeout(() => this.reconnect(), 100); // Small delay before next attempt
+      }
     } finally {
       this.reconnecting = false;
     }
@@ -134,7 +167,12 @@ class BrowserPool {
     // Create new context if pool not at capacity
     if (this.contextPool.length < this.maxContexts) {
       try {
-        const context = await this.browser!.newContext({
+        if (!this.browser) {
+          logger.error("[BrowserPool] Browser instance is null, cannot create new context");
+          return null;
+        }
+        
+        const context = await this.browser.newContext({
           viewport: { width: 1440, height: 900 },
           userAgent:
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",

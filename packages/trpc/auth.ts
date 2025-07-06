@@ -5,6 +5,7 @@ import { db } from "@karakeep/db";
 import { apiKeys } from "@karakeep/db/schema";
 import serverConfig from "@karakeep/shared/config";
 import { authFailureLogger } from "@karakeep/shared/logger";
+import { timingSafeStringCompare } from "@karakeep/shared/validation";
 
 // API Keys
 
@@ -42,15 +43,34 @@ export async function generateApiKey(name: string, userId: string) {
   };
 }
 function parseApiKey(plain: string) {
+  // Validate input format first
+  if (typeof plain !== "string" || plain.length === 0) {
+    throw new Error("Invalid API key format: empty or non-string value");
+  }
+  
+  // Ensure reasonable length limits to prevent DoS
+  if (plain.length > 512) {
+    throw new Error("Invalid API key format: too long");
+  }
+  
   const parts = plain.split("_");
-  if (parts.length != 3) {
+  if (parts.length !== 3) {
     throw new Error(
-      `Malformd API key. API keys should have 3 segments, found ${parts.length} instead.`,
+      `Invalid API key format: expected 3 segments, found ${parts.length}`,
     );
   }
-  if (parts[0] !== API_KEY_PREFIX) {
-    throw new Error(`Malformd API key. Got unexpected key prefix.`);
+  
+  // Use timing-safe comparison for prefix validation
+  if (!timingSafeStringCompare(parts[0], API_KEY_PREFIX)) {
+    throw new Error("Invalid API key format: incorrect prefix");
   }
+  
+  // Validate keyId and keySecret format (should be hex strings)
+  const hexPattern = /^[a-fA-F0-9]+$/;
+  if (!hexPattern.test(parts[1]) || !hexPattern.test(parts[2])) {
+    throw new Error("Invalid API key format: malformed key components");
+  }
+  
   return {
     keyId: parts[1],
     keySecret: parts[2],

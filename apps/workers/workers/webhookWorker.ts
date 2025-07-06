@@ -11,7 +11,7 @@ import {
   ZWebhookRequest,
   zWebhookRequestSchema,
 } from "@karakeep/shared/queues";
-import { validateAndSanitizeUrl } from "@karakeep/shared/validation";
+import { validateUrlForSSRF } from "@karakeep/shared/validation";
 
 export class WebhookWorker {
   static build() {
@@ -100,23 +100,8 @@ async function runWebhook(job: DequeuedJob<ZWebhookRequest>) {
 
         while (attempt < maxRetries && !success) {
           try {
-            // Validate webhook URL to prevent SSRF attacks
-            const sanitizedUrl = validateAndSanitizeUrl(url);
-
-            // Prevent internal network access
-            const parsedUrl = new URL(sanitizedUrl);
-            if (
-              parsedUrl.hostname === "localhost" ||
-              parsedUrl.hostname === "127.0.0.1" ||
-              parsedUrl.hostname.startsWith("192.168.") ||
-              parsedUrl.hostname.startsWith("10.") ||
-              parsedUrl.hostname.startsWith("172.")
-            ) {
-              logger.error(
-                `[webhook][${jobId}] Webhook URL ${url} targets internal network, skipping for security`,
-              );
-              break;
-            }
+            // Validate webhook URL to prevent SSRF attacks with robust IP validation
+            const sanitizedUrl = await validateUrlForSSRF(url);
 
             const response = await fetch(sanitizedUrl, {
               method: "POST",
