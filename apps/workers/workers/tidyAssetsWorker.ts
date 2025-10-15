@@ -97,7 +97,7 @@ async function runTidyAssets(job: DequeuedJob<ZTidyAssetsRequest>) {
 
   for await (const asset of getAllAssets()) {
     try {
-      handleAsset(asset, request.data, jobId);
+      await handleAsset(asset, request.data, jobId);
     } catch (e) {
       logger.error(
         `[tidyAssets][${jobId}] Failed to tidy asset ${asset.assetId}: ${e}`,

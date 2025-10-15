@@ -20,6 +20,7 @@ import metascraperTitle from "metascraper-title";
 import metascraperTwitter from "metascraper-twitter";
 import metascraperUrl from "metascraper-url";
 import fetch from "node-fetch";
+import type { Response } from "node-fetch";
 import { chromium } from "playwright-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { withTimeout } from "utils";
@@ -59,6 +60,7 @@ import {
 } from "@karakeep/shared/queues";
 import { ApifyService } from "@karakeep/shared/services/apifyService";
 import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
+import { validateUrlForSSRF } from "@karakeep/shared/validation";
 import { isXComUrl } from "@karakeep/shared/utils/xcom";
 
 import metascraperReddit from "../metascraper-plugins/metascraper-reddit";
@@ -84,6 +86,56 @@ const metascraperParser = metascraper([
 ]);
 
 let globalBlocker: PlaywrightBlocker | undefined;
+
+const MAX_HTML_RESPONSE_BYTES = 5 * 1024 * 1024; // 5 MiB cap for HTML payloads
+
+async function ensureContentLengthWithinLimit(
+  response: Response,
+  limit: number,
+  jobId: string,
+  description: string,
+) {
+  const contentLengthHeader = response.headers.get("content-length");
+  if (contentLengthHeader) {
+    const declaredLength = Number(contentLengthHeader);
+    if (!Number.isNaN(declaredLength) && declaredLength > limit) {
+      throw new Error(
+        `[Crawler][${jobId}] ${description} exceeds maximum allowed size (${declaredLength} bytes > ${limit} bytes)`,
+      );
+    }
+  }
+}
+
+async function readResponseBodyWithLimit(
+  response: Response,
+  limit: number,
+  jobId: string,
+  description: string,
+): Promise<Buffer> {
+  await ensureContentLengthWithinLimit(response, limit, jobId, description);
+
+  if (!response.body) {
+    return Buffer.alloc(0);
+  }
+
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  for await (const chunk of response.body as AsyncIterable<Buffer | Uint8Array | string>) {
+    const buffer = Buffer.isBuffer(chunk)
+      ? chunk
+      : typeof chunk === "string"
+        ? Buffer.from(chunk)
+        : Buffer.from(chunk);
+    totalBytes += buffer.byteLength;
+    if (totalBytes > limit) {
+      throw new Error(
+        `[Crawler][${jobId}] ${description} exceeded maximum allowed size (${totalBytes} bytes > ${limit} bytes)`,
+      );
+    }
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks);
+}
 
 // Browser management is now handled by browserPool
 
@@ -194,8 +246,14 @@ async function browserlessCrawlPage(
   logger.info(
     `[Crawler][${jobId}] Successfully fetched the content of "${url}". Status: ${response.status}, Size: ${response.size}`,
   );
+  const htmlBuffer = await readResponseBodyWithLimit(
+    response,
+    MAX_HTML_RESPONSE_BYTES,
+    jobId,
+    "HTML response",
+  );
   return {
-    htmlContent: await response.text(),
+    htmlContent: htmlBuffer.toString("utf-8"),
     statusCode: response.status,
     screenshot: undefined,
     url: response.url,
@@ -252,6 +310,12 @@ async function crawlPage(
 
     // Extract content from the page
     const htmlContent = await page.content();
+    const htmlSize = Buffer.byteLength(htmlContent, "utf-8");
+    if (htmlSize > MAX_HTML_RESPONSE_BYTES) {
+      throw new Error(
+        `[Crawler][${jobId}] HTML response exceeded maximum allowed size (${htmlSize} bytes > ${MAX_HTML_RESPONSE_BYTES} bytes)`,
+      );
+    }
     logger.info(`[Crawler][${jobId}] Successfully fetched the page content.`);
 
     // Take a screenshot if configured
@@ -383,14 +447,22 @@ async function downloadAndStoreFile(
   abortSignal: AbortSignal,
 ) {
   try {
-    logger.info(`[Crawler][${jobId}] Downloading ${fileType} from "${url}"`);
-    const response = await fetch(url, {
+    const safeUrl = await validateUrlForSSRF(url);
+    logger.info(`[Crawler][${jobId}] Downloading ${fileType} from "${safeUrl}"`);
+    const response = await fetch(safeUrl, {
       signal: abortSignal,
     });
     if (!response.ok) {
       throw new Error(`Failed to download ${fileType}: ${response.status}`);
     }
-    const buffer = await response.arrayBuffer();
+    const maxAssetBytes = serverConfig.maxAssetSizeMb * 1024 * 1024;
+    const bodyBuffer = await readResponseBodyWithLimit(
+      response,
+      maxAssetBytes,
+      jobId,
+      `${fileType} download`,
+    );
+    const buffer = bodyBuffer;
     const assetId = newAssetId();
 
     const contentType = response.headers.get("content-type");
@@ -402,11 +474,11 @@ async function downloadAndStoreFile(
       userId,
       assetId,
       metadata: { contentType },
-      asset: Buffer.from(buffer),
+      asset: buffer,
     });
 
     logger.info(
-      `[Crawler][${jobId}] Downloaded ${fileType} as assetId: ${assetId}`,
+      `[Crawler][${jobId}] Downloaded ${fileType} (${buffer.byteLength} bytes) as assetId: ${assetId}`,
     );
 
     return { assetId, userId, contentType, size: buffer.byteLength };
@@ -480,13 +552,14 @@ async function getContentType(
     logger.info(
       `[Crawler][${jobId}] Attempting to determine the content-type for the url ${url}`,
     );
-    const response = await fetch(url, {
+    const safeUrl = await validateUrlForSSRF(url);
+    const response = await fetch(safeUrl, {
       method: "HEAD",
       signal: AbortSignal.any([AbortSignal.timeout(5000), abortSignal]),
     });
     const contentType = response.headers.get("content-type");
     logger.info(
-      `[Crawler][${jobId}] Content-type for the url ${url} is "${contentType}"`,
+      `[Crawler][${jobId}] Content-type for the url ${safeUrl} is "${contentType}"`,
     );
     return contentType;
   } catch (e) {
@@ -912,15 +985,16 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
     `[Crawler][${jobId}] Will crawl "${url}" for link with id "${bookmarkId}"`,
   );
   validateUrl(url);
+  const safeUrl = await validateUrlForSSRF(url);
 
-  const contentType = await getContentType(url, jobId, job.abortSignal);
+  const contentType = await getContentType(safeUrl, jobId, job.abortSignal);
 
   // Link bookmarks get transformed into asset bookmarks if they point to a supported asset instead of a webpage
   const isPdf = contentType === ASSET_TYPES.APPLICATION_PDF;
 
   if (isPdf) {
     await handleAsAssetBookmark(
-      url,
+      safeUrl,
       "pdf",
       userId,
       jobId,
@@ -933,7 +1007,7 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
     SUPPORTED_UPLOAD_ASSET_TYPES.has(contentType)
   ) {
     await handleAsAssetBookmark(
-      url,
+      safeUrl,
       "image",
       userId,
       jobId,
@@ -942,10 +1016,10 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
     );
   } else {
     // Check if URL is X.com and enhanced scraping is enabled
-    if (isXComUrl(url) && ApifyService.isEnabled()) {
+    if (isXComUrl(safeUrl) && ApifyService.isEnabled()) {
       try {
         const apifyResult = await crawlXComWithApify(
-          url,
+          safeUrl,
           userId,
           jobId,
           bookmarkId,
@@ -956,7 +1030,7 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
           // Use Apify result instead of regular crawling
           await processApifyResult(
             apifyResult,
-            url,
+            safeUrl,
             userId,
             jobId,
             bookmarkId,
@@ -1012,7 +1086,7 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
 
     // Regular crawling logic (for non-X.com URLs or when Apify fails)
     const archivalLogic = await crawlAndParseUrl(
-      url,
+      safeUrl,
       userId,
       jobId,
       bookmarkId,
@@ -1048,7 +1122,7 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
     await triggerSearchReindex(bookmarkId);
 
     // Trigger a potential download of a video from the URL
-    await triggerVideoWorker(bookmarkId, url);
+    await triggerVideoWorker(bookmarkId, safeUrl);
 
     // Trigger a webhook
     await triggerWebhook(bookmarkId, "crawled");
