@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import * as path from "node:path";
 import * as os from "os";
 import type { Response } from "node-fetch";
+import type { Page } from "playwright";
 import { PlaywrightBlocker } from "@ghostery/adblocker-playwright";
 import { Readability } from "@mozilla/readability";
 import DOMPurify from "dompurify";
@@ -276,6 +277,7 @@ async function crawlPage(
 }> {
   // Acquire a browser context from the pool
   const context = await browserPool.acquireContext();
+  let page: Page | undefined;
 
   if (!context) {
     logger.info(
@@ -286,7 +288,7 @@ async function crawlPage(
 
   try {
     // Create a new page in the context
-    const page = await context.newPage();
+    page = await context.newPage();
 
     // Apply ad blocking if available
     if (globalBlocker) {
@@ -359,6 +361,15 @@ async function crawlPage(
       url: page.url(),
     };
   } finally {
+    try {
+      if (page && !page.isClosed()) {
+        await page.close();
+      }
+    } catch (error) {
+      logger.warn(
+        `[Crawler][${jobId}] Failed to close Playwright page cleanly: ${String(error)}`,
+      );
+    }
     // Release the context back to the pool
     await browserPool.releaseContext(context);
   }
