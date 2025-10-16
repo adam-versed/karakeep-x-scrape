@@ -401,7 +401,10 @@ function extractReadableContent(
   }
 
   const window = new JSDOM("").window;
-  const purify = DOMPurify(window);
+  // DOMPurify's WindowLike typing differs from jsdom's Window across linker modes; cast through unknown
+  const purify = (
+    DOMPurify as unknown as (w: unknown) => ReturnType<typeof DOMPurify>
+  )(window);
   const purifiedHTML = purify.sanitize(readableContent.content);
 
   logger.info(`[Crawler][${jobId}] Done extracting readable content.`);

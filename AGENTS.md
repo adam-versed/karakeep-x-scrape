@@ -8,7 +8,7 @@
 - Tests sit beside their targets (e.g., `packages/trpc/tests`, `apps/workers/tests`).
 
 ## Build, Test, and Development Commands
-- `pnpm install` – install workspace dependencies.
+- `pnpm install` – install workspace dependencies (default hoisted linker). For dependency audits, you can also try `pnpm install --config.node-linker=isolated` locally to surface missing direct deps.
 - `./start-dev.sh` – boot Meilisearch, headless Chrome, run migrations, and start core services.
 - `pnpm dev --filter apps/web` – launch the web UI once infra is up.
 - `pnpm build` – run the Turborepo production build.
@@ -51,6 +51,7 @@
 - Copy `.env.example`, set `DATA_DIR`, libSQL credentials, and inference provider keys before `start-dev.sh`.
 - Never commit secrets; use `.env.local` for local overrides and managed stores for deployments.
 - Ensure `data/queue.db` is writable so Liteque-backed workers can persist jobs.
+ - Prefer explicit per-package dependencies. Isolated linker is not default yet; use it locally to validate dependency graphs and add any missing direct deps.
 
 ## SCOUT.md
 - a living record that provides further context of the approach, constraints, potential issues and notable history of actions - this should be reviewed when carrying out development work and if any work changes the detail of SCOUT.md it should be updated along with its Last updated date in the title section.

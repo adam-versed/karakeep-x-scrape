@@ -1,6 +1,5 @@
 import { Adapter, AdapterUser } from "@auth/core/adapters";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { and, count, eq } from "drizzle-orm";
 import NextAuth, {
   DefaultSession,
   getServerSession,
@@ -11,7 +10,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { Provider } from "next-auth/providers/index";
 import requestIp from "request-ip";
 
-import { db } from "@karakeep/db";
+import { and, count, db, eq } from "@karakeep/db";
 import {
   accounts,
   sessions,
@@ -73,7 +72,12 @@ async function isAdmin(email: string): Promise<boolean> {
 }
 
 const CustomProvider = (): Adapter => {
-  const adapter = DrizzleAdapter(db, {
+  // Under pnpm isolated linker, ensure a single Drizzle type identity by loosening the adapter param typing
+  const asAdapter = DrizzleAdapter as unknown as (
+    db: unknown,
+    opts: unknown,
+  ) => Adapter;
+  const adapter = asAdapter(db, {
     usersTable: users,
     accountsTable: accounts,
     sessionsTable: sessions,

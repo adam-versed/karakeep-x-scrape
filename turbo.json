@@ -1,7 +1,12 @@
 {
   "$schema": "https://turborepo.org/schema.json",
   "globalDependencies": [
-    "**/.env"
+    "**/.env",
+    "pnpm-lock.yaml",
+    "package.json",
+    "pnpm-workspace.yaml",
+    "**/tsconfig.json",
+    "turbo.json"
   ],
   "tasks": {
     "topo": {
@@ -17,6 +22,9 @@
         ".next/**",
         "!.next/cache/**",
         "next-env.d.ts",
+        "dist/**",
+        "build/**",
+        "lib/**",
         ".expo/**",
         ".output/**",
         ".vercel/output/**"
@@ -34,16 +42,20 @@
     },
     "lint": {
       "dependsOn": [
-        "^topo"
+        "^lint"
       ]
     },
     "typecheck": {
       "dependsOn": [
-        "^topo"
+        "^typecheck"
       ],
       "outputs": [
         "node_modules/.cache/tsbuildinfo.json"
       ]
+    },
+    "test": {
+      "cache": false,
+      "persistent": true
     },
     "clean": {
       "cache": false
