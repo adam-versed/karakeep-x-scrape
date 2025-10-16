@@ -20,6 +20,7 @@ class BrowserPool {
   private reconnectAttempts = 0;
   private readonly maxReconnectAttempts = 10;
   private readonly baseReconnectDelay = 1000; // 1 second
+  private waitingResolvers: ((context: BrowserContext | null) => void)[] = [];
 
   async initialize(): Promise<void> {
     if (this.initializationPromise) {
@@ -114,7 +115,7 @@ class BrowserPool {
         // Reset attempt counter on successful reconnection
         this.reconnectAttempts = 0;
         logger.info("[BrowserPool] Successfully reconnected browser");
-        
+
         this.browser.on("disconnected", () => {
           logger.warn(
             "[BrowserPool] Browser disconnected, will attempt to reconnect",
@@ -127,7 +128,7 @@ class BrowserPool {
         `[BrowserPool] Failed to reconnect browser (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}):`,
         error,
       );
-      
+
       // If we haven't reached max attempts, schedule another retry
       if (this.reconnectAttempts < this.maxReconnectAttempts) {
         setTimeout(() => this.reconnect(), 100); // Small delay before next attempt
@@ -168,10 +169,12 @@ class BrowserPool {
     if (this.contextPool.length < this.maxContexts) {
       try {
         if (!this.browser) {
-          logger.error("[BrowserPool] Browser instance is null, cannot create new context");
+          logger.error(
+            "[BrowserPool] Browser instance is null, cannot create new context",
+          );
           return null;
         }
-        
+
         const context = await this.browser.newContext({
           viewport: { width: 1440, height: 900 },
           userAgent:
@@ -196,13 +199,24 @@ class BrowserPool {
     logger.warn(
       "[BrowserPool] Context pool at capacity, waiting for available context",
     );
-    return null;
+
+    return await new Promise<BrowserContext | null>((resolve) => {
+      this.waitingResolvers.push(resolve);
+    });
   }
 
   async releaseContext(context: BrowserContext): Promise<void> {
     const poolItem = this.contextPool.find((item) => item.context === context);
 
     if (poolItem) {
+      const nextResolver = this.waitingResolvers.shift();
+      if (nextResolver) {
+        poolItem.inUse = true;
+        poolItem.lastUsed = new Date();
+        nextResolver(poolItem.context);
+        return;
+      }
+
       poolItem.inUse = false;
       poolItem.lastUsed = new Date();
     } else {
@@ -230,6 +244,14 @@ class BrowserPool {
 
     await Promise.allSettled(closePromises);
     this.contextPool = [];
+
+    // Resolve any pending waiters so they don't hang indefinitely
+    while (this.waitingResolvers.length > 0) {
+      const resolver = this.waitingResolvers.shift();
+      if (resolver) {
+        resolver(null);
+      }
+    }
   }
 
   async close(): Promise<void> {
