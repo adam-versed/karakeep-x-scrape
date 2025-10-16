@@ -1,12 +1,15 @@
 import { experimental_trpcMiddleware } from "@trpc/server";
+import { count, inArray } from "drizzle-orm";
 import { z } from "zod";
 
+import { bookmarksInLists } from "@karakeep/db/schema";
 import {
   zBookmarkListSchema,
   zEditBookmarkListSchemaWithValidation,
   zMergeListSchema,
   zNewBookmarkListSchema,
 } from "@karakeep/shared/types/lists";
+import { zCursorV2 } from "@karakeep/shared/types/pagination";
 
 import type { AuthedContext } from "../index";
 import { authedProcedure, router } from "../index";
@@ -99,14 +102,26 @@ export const listsAppRouter = router({
       return ctx.list.list;
     }),
   list: authedProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().min(1).max(100).default(20),
+          cursor: zCursorV2.optional(),
+        })
+        .optional(),
+    )
     .output(
       z.object({
         lists: z.array(zBookmarkListSchema),
+        nextCursor: zCursorV2.nullable(),
       }),
     )
-    .query(async ({ ctx }) => {
-      const results = await List.getAll(ctx);
-      return { lists: results.map((l) => l.list) };
+    .query(async ({ input, ctx }) => {
+      const results = await List.getAll(ctx, input);
+      return {
+        lists: results.lists.map((l) => l.list),
+        nextCursor: results.nextCursor,
+      };
     }),
   getListsOfBookmark: authedProcedure
     .input(z.object({ bookmarkId: z.string() }))
@@ -127,9 +142,43 @@ export const listsAppRouter = router({
       }),
     )
     .query(async ({ ctx }) => {
-      const lists = await List.getAll(ctx);
-      const sizes = await Promise.all(lists.map((l) => l.getSize()));
-      return { stats: new Map(lists.map((l, i) => [l.list.id, sizes[i]])) };
+      // Get all lists without pagination for stats (but limit to reasonable number)
+      const results = await List.getAll(ctx, { limit: 100 });
+      const lists = results.lists;
+
+      const manualListIds = lists
+        .filter((list) => list.type === "manual")
+        .map((list) => list.list.id);
+
+      const manualCounts = new Map<string, number>();
+      if (manualListIds.length > 0) {
+        const aggregated = await ctx.db
+          .select({
+            listId: bookmarksInLists.listId,
+            itemCount: count(bookmarksInLists.bookmarkId),
+          })
+          .from(bookmarksInLists)
+          .where(inArray(bookmarksInLists.listId, manualListIds))
+          .groupBy(bookmarksInLists.listId);
+        for (const row of aggregated) {
+          if (!row.listId) {
+            continue;
+          }
+          manualCounts.set(row.listId, Number(row.itemCount));
+        }
+      }
+
+      const sizeEntries = await Promise.all(
+        lists.map(async (list) => {
+          if (list.type === "manual") {
+            return [list.list.id, manualCounts.get(list.list.id) ?? 0] as const;
+          }
+          const size = await list.getSize();
+          return [list.list.id, size] as const;
+        }),
+      );
+
+      return { stats: new Map(sizeEntries) };
     }),
 
   // Rss endpoints

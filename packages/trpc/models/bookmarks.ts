@@ -6,7 +6,6 @@ import {
   eq,
   exists,
   gt,
-  gte,
   inArray,
   lt,
   lte,
@@ -22,7 +21,6 @@ import {
   bookmarkLinks,
   bookmarks,
   bookmarksInLists,
-  bookmarkTags,
   bookmarkTexts,
   rssFeedImportsTable,
   tagsOnBookmarks,
@@ -154,7 +152,7 @@ export class Bookmark implements PrivacyAware {
                     gt(bookmarks.createdAt, input.cursor.createdAt),
                     and(
                       eq(bookmarks.createdAt, input.cursor.createdAt),
-                      gte(bookmarks.id, input.cursor.id),
+                      lt(bookmarks.id, input.cursor.id),
                     ),
                   )
                 : or(
@@ -175,130 +173,162 @@ export class Bookmark implements PrivacyAware {
           desc(bookmarks.id),
         ),
     );
-    // TODO: Consider not inlining the tags in the response of getBookmarks as this query is getting kinda expensive
-    const results = await ctx.db
+    const baseRows = await ctx.db
       .with(sq)
       .select()
       .from(sq)
-      .leftJoin(tagsOnBookmarks, eq(sq.id, tagsOnBookmarks.bookmarkId))
-      .leftJoin(bookmarkTags, eq(tagsOnBookmarks.tagId, bookmarkTags.id))
-      .leftJoin(bookmarkLinks, eq(bookmarkLinks.id, sq.id))
-      .leftJoin(bookmarkTexts, eq(bookmarkTexts.id, sq.id))
-      .leftJoin(bookmarkAssets, eq(bookmarkAssets.id, sq.id))
-      .leftJoin(assets, eq(assets.bookmarkId, sq.id))
       .orderBy(desc(sq.createdAt), desc(sq.id));
 
-    const bookmarksRes = results.reduce<Record<string, ZBookmark>>(
-      (acc, row) => {
-        const bookmarkId = row.bookmarksSq.id;
-        if (!acc[bookmarkId]) {
-          let content: ZBookmarkContent;
-          if (row.bookmarkLinks) {
-            content = {
-              type: BookmarkTypes.LINK,
-              url: row.bookmarkLinks.url,
-              title: row.bookmarkLinks.title,
-              description: row.bookmarkLinks.description,
-              imageUrl: row.bookmarkLinks.imageUrl,
-              favicon: row.bookmarkLinks.favicon,
-              htmlContent: input.includeContent
-                ? row.bookmarkLinks.htmlContent
-                : null,
-              crawledAt: row.bookmarkLinks.crawledAt,
-              author: row.bookmarkLinks.author,
-              publisher: row.bookmarkLinks.publisher,
-              datePublished: row.bookmarkLinks.datePublished,
-              dateModified: row.bookmarkLinks.dateModified,
-            };
-          } else if (row.bookmarkTexts) {
-            content = {
-              type: BookmarkTypes.TEXT,
-              text: row.bookmarkTexts.text ?? "",
-              sourceUrl: row.bookmarkTexts.sourceUrl ?? null,
-            };
-          } else if (row.bookmarkAssets) {
-            content = {
-              type: BookmarkTypes.ASSET,
-              assetId: row.bookmarkAssets.assetId,
-              assetType: row.bookmarkAssets.assetType,
-              fileName: row.bookmarkAssets.fileName,
-              sourceUrl: row.bookmarkAssets.sourceUrl ?? null,
-              size: null, // This will get filled in the asset loop
-              content: input.includeContent
-                ? (row.bookmarkAssets.content ?? null)
-                : null,
-            };
-          } else {
-            content = {
-              type: BookmarkTypes.UNKNOWN,
-            };
-          }
-          acc[bookmarkId] = {
-            ...row.bookmarksSq,
-            content,
-            tags: [],
-            assets: [],
-          };
+    if (baseRows.length === 0) {
+      return { bookmarks: [], nextCursor: null };
+    }
+
+    const bookmarkMap = new Map<string, ZBookmark>();
+    for (const row of baseRows) {
+      bookmarkMap.set(row.id, {
+        ...row,
+        content: {
+          type: BookmarkTypes.UNKNOWN,
+        },
+        tags: [],
+        assets: [],
+      });
+    }
+
+    const bookmarkIds = Array.from(bookmarkMap.keys());
+
+    const [linkRows, textRows, assetBookmarkRows, attachmentRows, tagRows] =
+      await Promise.all([
+        ctx.db
+          .select()
+          .from(bookmarkLinks)
+          .where(inArray(bookmarkLinks.id, bookmarkIds)),
+        ctx.db
+          .select()
+          .from(bookmarkTexts)
+          .where(inArray(bookmarkTexts.id, bookmarkIds)),
+        ctx.db
+          .select()
+          .from(bookmarkAssets)
+          .where(inArray(bookmarkAssets.id, bookmarkIds)),
+        ctx.db
+          .select()
+          .from(assets)
+          .where(inArray(assets.bookmarkId, bookmarkIds)),
+        ctx.db.query.tagsOnBookmarks.findMany({
+          where: inArray(tagsOnBookmarks.bookmarkId, bookmarkIds),
+          with: {
+            tag: true,
+          },
+        }),
+      ]);
+
+    for (const link of linkRows) {
+      const target = bookmarkMap.get(link.id);
+      if (!target) continue;
+      target.content = {
+        type: BookmarkTypes.LINK,
+        url: link.url,
+        title: link.title,
+        description: link.description,
+        imageUrl: link.imageUrl,
+        favicon: link.favicon,
+        htmlContent: input.includeContent ? link.htmlContent : null,
+        crawledAt: link.crawledAt,
+        author: link.author,
+        publisher: link.publisher,
+        datePublished: link.datePublished,
+        dateModified: link.dateModified,
+      };
+    }
+
+    for (const text of textRows) {
+      const target = bookmarkMap.get(text.id);
+      if (!target) continue;
+      target.content = {
+        type: BookmarkTypes.TEXT,
+        text: text.text ?? "",
+        sourceUrl: text.sourceUrl ?? null,
+      };
+    }
+
+    for (const assetBookmark of assetBookmarkRows) {
+      const target = bookmarkMap.get(assetBookmark.id);
+      if (!target) continue;
+      target.content = {
+        type: BookmarkTypes.ASSET,
+        assetId: assetBookmark.assetId,
+        assetType: assetBookmark.assetType,
+        fileName: assetBookmark.fileName,
+        sourceUrl: assetBookmark.sourceUrl ?? null,
+        size: null,
+        content: input.includeContent ? (assetBookmark.content ?? null) : null,
+      };
+    }
+
+    for (const tagRow of tagRows) {
+      const bookmarkId = tagRow.bookmarkId;
+      if (!bookmarkId) continue;
+      const target = bookmarkMap.get(bookmarkId);
+      if (!target) continue;
+      if (target.tags.some((tag) => tag.id === tagRow.tag.id)) {
+        continue;
+      }
+      target.tags.push({
+        ...tagRow.tag,
+        attachedBy: tagRow.attachedBy,
+      });
+    }
+
+    for (const attachment of attachmentRows) {
+      const bookmarkId = attachment.bookmarkId;
+      if (!bookmarkId) continue;
+      const target = bookmarkMap.get(bookmarkId);
+      if (!target) continue;
+      if (target.assets.some((asset) => asset.id === attachment.id)) {
+        continue;
+      }
+
+      if (target.content.type === BookmarkTypes.LINK) {
+        const content = target.content;
+        invariant(content.type === BookmarkTypes.LINK);
+        switch (attachment.assetType) {
+          case AssetTypes.LINK_SCREENSHOT:
+            content.screenshotAssetId = attachment.id;
+            break;
+          case AssetTypes.LINK_FULL_PAGE_ARCHIVE:
+            content.fullPageArchiveAssetId = attachment.id;
+            break;
+          case AssetTypes.LINK_BANNER_IMAGE:
+            content.imageAssetId = attachment.id;
+            break;
+          case AssetTypes.LINK_VIDEO:
+            content.videoAssetId = attachment.id;
+            break;
+          case AssetTypes.LINK_PRECRAWLED_ARCHIVE:
+            content.precrawledArchiveAssetId = attachment.id;
+            break;
+          default:
+            break;
         }
+        target.content = content;
+      }
 
-        if (
-          row.bookmarkTags &&
-          // Duplicates may occur because of the join, so we need to make sure we're not adding the same tag twice
-          !acc[bookmarkId].tags.some((t) => t.id == row.bookmarkTags!.id)
-        ) {
-          invariant(
-            row.tagsOnBookmarks,
-            "if bookmark tag is set, its many-to-many relation must also be set",
-          );
-          acc[bookmarkId].tags.push({
-            ...row.bookmarkTags,
-            attachedBy: row.tagsOnBookmarks.attachedBy,
-          });
+      if (target.content.type === BookmarkTypes.ASSET) {
+        const content = target.content;
+        if (attachment.id === content.assetId) {
+          content.size = attachment.size;
         }
+        target.content = content;
+      }
 
-        if (
-          row.assets &&
-          !acc[bookmarkId].assets.some((a) => a.id == row.assets!.id)
-        ) {
-          if (acc[bookmarkId].content.type == BookmarkTypes.LINK) {
-            const content = acc[bookmarkId].content;
-            invariant(content.type == BookmarkTypes.LINK);
-            if (row.assets.assetType == AssetTypes.LINK_SCREENSHOT) {
-              content.screenshotAssetId = row.assets.id;
-            }
-            if (row.assets.assetType == AssetTypes.LINK_FULL_PAGE_ARCHIVE) {
-              content.fullPageArchiveAssetId = row.assets.id;
-            }
-            if (row.assets.assetType == AssetTypes.LINK_BANNER_IMAGE) {
-              content.imageAssetId = row.assets.id;
-            }
-            if (row.assets.assetType == AssetTypes.LINK_VIDEO) {
-              content.videoAssetId = row.assets.id;
-            }
-            if (row.assets.assetType == AssetTypes.LINK_PRECRAWLED_ARCHIVE) {
-              content.precrawledArchiveAssetId = row.assets.id;
-            }
-            acc[bookmarkId].content = content;
-          }
-          if (acc[bookmarkId].content.type == BookmarkTypes.ASSET) {
-            const content = acc[bookmarkId].content;
-            if (row.assets.id == content.assetId) {
-              // If this is the bookmark's main aset, caputure its size.
-              content.size = row.assets.size;
-            }
-          }
-          acc[bookmarkId].assets.push({
-            id: row.assets.id,
-            assetType: mapDBAssetTypeToUserType(row.assets.assetType),
-          });
-        }
+      target.assets.push({
+        id: attachment.id,
+        assetType: mapDBAssetTypeToUserType(attachment.assetType),
+      });
+    }
 
-        return acc;
-      },
-      {},
-    );
-
-    const bookmarksArr = Object.values(bookmarksRes);
+    const bookmarksArr = Array.from(bookmarkMap.values());
 
     bookmarksArr.sort((a, b) => {
       if (a.createdAt != b.createdAt) {

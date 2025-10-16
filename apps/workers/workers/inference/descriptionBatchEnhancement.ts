@@ -134,7 +134,15 @@ export async function runBatchDescriptionEnhancement(
       abortSignal: job.abortSignal,
     });
 
-    const parsedResponse = JSON.parse(response.response);
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(response.response);
+    } catch (parseError) {
+      logger.error(
+        `[inference][${jobId}] Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+      );
+      throw new Error("Invalid JSON response from inference API");
+    }
 
     // Validate and clean descriptions
     const cleanedDescriptions: Record<string, string> = {};
@@ -162,16 +170,15 @@ export async function runBatchDescriptionEnhancement(
       `[inference][${jobId}] Generated ${Object.keys(result.descriptions).length} descriptions out of ${bookmarksToEnhance.length} bookmarks (used ${response.totalTokens} tokens)`,
     );
 
-    // Update all bookmarks with their descriptions
-    const updates = Object.entries(result.descriptions).map(
-      ([bookmarkId, description]) =>
-        db
+    // Update all bookmarks with their descriptions in a transaction
+    await db.transaction(async (tx) => {
+      for (const [bookmarkId, description] of Object.entries(result.descriptions)) {
+        await tx
           .update(bookmarkLinks)
           .set({ description })
-          .where(eq(bookmarkLinks.id, bookmarkId)),
-    );
-
-    await Promise.all(updates);
+          .where(eq(bookmarkLinks.id, bookmarkId));
+      }
+    });
 
     // Log missing descriptions
     const missingIds = bookmarksToEnhance

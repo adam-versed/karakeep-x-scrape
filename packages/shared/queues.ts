@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import serverConfig from "./config";
 import { zRuleEngineEventSchema } from "./types/rules";
+import { zSafeUrlSchema } from "./validation";
 
 const QUEUE_DB_PATH = path.join(serverConfig.dataDir, "queue.db");
 
@@ -136,7 +137,7 @@ export async function triggerReprocessingFixMode(bookmarkId: string) {
 
 export const zvideoRequestSchema = z.object({
   bookmarkId: z.string(),
-  url: z.string(),
+  url: zSafeUrlSchema,
 });
 export type ZVideoRequest = z.infer<typeof zvideoRequestSchema>;
 

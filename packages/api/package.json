@@ -10,7 +10,7 @@
     "format:fix": "prettier . --write --ignore-path ../../.prettierignore",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
-    "test": "vitest"
+    "test": "vitest run --bail=1"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.5.0",

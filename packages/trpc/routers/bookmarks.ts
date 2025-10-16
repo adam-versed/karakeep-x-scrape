@@ -1,5 +1,5 @@
 import { experimental_trpcMiddleware, TRPCError } from "@trpc/server";
-import { and, eq, gt, inArray, lt, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, or } from "drizzle-orm";
 import invariant from "tiny-invariant";
 import { z } from "zod";
 
@@ -952,6 +952,17 @@ export const bookmarksAppRouter = router({
       });
     }),
   getBrokenLinks: authedProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(20),
+        cursor: z
+          .object({
+            id: z.string(),
+            createdAt: z.date(),
+          })
+          .optional(),
+      }),
+    )
     .output(
       z.object({
         bookmarks: z.array(
@@ -964,9 +975,39 @@ export const bookmarksAppRouter = router({
             createdAt: z.date().nullable(),
           }),
         ),
+        nextCursor: z
+          .object({
+            id: z.string(),
+            createdAt: z.date(),
+          })
+          .nullable(),
       }),
     )
-    .query(async ({ ctx }) => {
+    .query(async ({ ctx, input }) => {
+      const { limit, cursor } = input;
+
+      let whereCondition = and(
+        eq(bookmarks.userId, ctx.user.id),
+        or(
+          eq(bookmarkLinks.crawlStatus, "failure"),
+          lt(bookmarkLinks.crawlStatusCode, 200),
+          gt(bookmarkLinks.crawlStatusCode, 299),
+        ),
+      );
+
+      if (cursor) {
+        whereCondition = and(
+          whereCondition,
+          or(
+            lt(bookmarks.createdAt, cursor.createdAt),
+            and(
+              eq(bookmarks.createdAt, cursor.createdAt),
+              gt(bookmarks.id, cursor.id),
+            ),
+          ),
+        );
+      }
+
       const brokenLinkBookmarks = await ctx.db
         .select({
           id: bookmarkLinks.id,
@@ -978,18 +1019,25 @@ export const bookmarksAppRouter = router({
         })
         .from(bookmarkLinks)
         .leftJoin(bookmarks, eq(bookmarks.id, bookmarkLinks.id))
-        .where(
-          and(
-            eq(bookmarks.userId, ctx.user.id),
-            or(
-              eq(bookmarkLinks.crawlStatus, "failure"),
-              lt(bookmarkLinks.crawlStatusCode, 200),
-              gt(bookmarkLinks.crawlStatusCode, 299),
-            ),
-          ),
-        );
+        .where(whereCondition)
+        .orderBy(desc(bookmarks.createdAt), asc(bookmarks.id))
+        .limit(limit + 1); // Get one extra to check if there are more
+
+      const hasMore = brokenLinkBookmarks.length > limit;
+      const items = hasMore
+        ? brokenLinkBookmarks.slice(0, limit)
+        : brokenLinkBookmarks;
+
+      const nextCursor =
+        hasMore && items.length > 0
+          ? {
+              id: items[items.length - 1].id,
+              createdAt: items[items.length - 1].createdAt!,
+            }
+          : null;
+
       return {
-        bookmarks: brokenLinkBookmarks.map((b) => ({
+        bookmarks: items.map((b) => ({
           id: b.id,
           url: b.url,
           statusCode: b.crawlStatusCode,
@@ -997,6 +1045,7 @@ export const bookmarksAppRouter = router({
           crawledAt: b.crawledAt,
           createdAt: b.createdAt,
         })),
+        nextCursor,
       };
     }),
   summarizeBookmark: authedProcedure

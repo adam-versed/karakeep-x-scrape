@@ -11,6 +11,7 @@ import {
   ZWebhookRequest,
   zWebhookRequestSchema,
 } from "@karakeep/shared/queues";
+import { validateUrlForSSRF } from "@karakeep/shared/validation";
 
 export class WebhookWorker {
   static build() {
@@ -99,7 +100,10 @@ async function runWebhook(job: DequeuedJob<ZWebhookRequest>) {
 
         while (attempt < maxRetries && !success) {
           try {
-            const response = await fetch(url, {
+            // Validate webhook URL to prevent SSRF attacks with robust IP validation
+            const sanitizedUrl = await validateUrlForSSRF(url);
+
+            const response = await fetch(sanitizedUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",

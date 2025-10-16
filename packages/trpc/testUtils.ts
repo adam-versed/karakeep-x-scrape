@@ -1,3 +1,5 @@
+import path from "path";
+import { migrate } from "drizzle-orm/libsql/migrator";
 import { vi } from "vitest";
 
 import { getInMemoryDB } from "@karakeep/db/drizzle";
@@ -6,11 +8,23 @@ import { users } from "@karakeep/db/schema";
 import { createCallerFactory } from "./index";
 import { appRouter } from "./routers/_app";
 
-export function getTestDB() {
-  return getInMemoryDB(true);
+export async function getTestDB() {
+  const db = await getInMemoryDB(false);
+  await migrate(db, {
+    migrationsFolder: path.resolve(__dirname, "../db/drizzle"),
+  });
+  const tables = await db.run(
+    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name ASC",
+  );
+  const tableCount = Array.isArray(tables?.rows) ? tables.rows.length : 0;
+  console.info(
+    "[trpc-tests] In-memory DB ready with migrations applied; table count:",
+    tableCount,
+  );
+  return db;
 }
 
-export type TestDB = ReturnType<typeof getTestDB>;
+export type TestDB = Awaited<ReturnType<typeof getTestDB>>;
 
 export async function seedUsers(db: TestDB) {
   return await db
@@ -56,10 +70,14 @@ export interface CustomTestContext {
 export async function buildTestContext(
   seedDB: boolean,
 ): Promise<CustomTestContext> {
-  const db = getTestDB();
+  console.info("[trpc-tests] buildTestContext invoked", { seedDB });
+  const db = await getTestDB();
+  await db.run("PRAGMA foreign_keys = ON");
   let users: Awaited<ReturnType<typeof seedUsers>> = [];
   if (seedDB) {
+    console.info("[trpc-tests] Seeding default users");
     users = await seedUsers(db);
+    console.info("[trpc-tests] Seeded", users.length, "users");
   }
   const callers = users.map((u) => getApiCaller(db, u.id, u.email));
 

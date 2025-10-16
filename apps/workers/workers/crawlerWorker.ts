@@ -1,14 +1,13 @@
-import * as dns from "dns";
 import { promises as fs } from "fs";
 import * as path from "node:path";
 import * as os from "os";
+import type { Response } from "node-fetch";
+import type { Page } from "playwright";
 import { PlaywrightBlocker } from "@ghostery/adblocker-playwright";
 import { Readability } from "@mozilla/readability";
-import { Mutex } from "async-mutex";
 import DOMPurify from "dompurify";
 import { eq } from "drizzle-orm";
 import { execa } from "execa";
-import { isShuttingDown } from "exit";
 import { JSDOM, VirtualConsole } from "jsdom";
 import { DequeuedJob, Runner } from "liteque";
 import metascraper from "metascraper";
@@ -23,7 +22,6 @@ import metascraperTitle from "metascraper-title";
 import metascraperTwitter from "metascraper-twitter";
 import metascraperUrl from "metascraper-url";
 import fetch from "node-fetch";
-import { Browser } from "playwright";
 import { chromium } from "playwright-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { withTimeout } from "utils";
@@ -64,9 +62,11 @@ import {
 import { ApifyService } from "@karakeep/shared/services/apifyService";
 import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
 import { isXComUrl } from "@karakeep/shared/utils/xcom";
+import { validateUrlForSSRF } from "@karakeep/shared/validation";
 
 import metascraperReddit from "../metascraper-plugins/metascraper-reddit";
 import metascraperX from "../metascraper-plugins/metascraper-x";
+import { browserPool } from "../utils/browserPool";
 
 const metascraperParser = metascraper([
   metascraperDate({
@@ -86,77 +86,63 @@ const metascraperParser = metascraper([
   metascraperUrl(),
 ]);
 
-let globalBrowser: Browser | undefined;
 let globalBlocker: PlaywrightBlocker | undefined;
-// Guards the interactions with the browser instance.
-// This is needed given that most of the browser APIs are async.
-const browserMutex = new Mutex();
 
-async function startBrowserInstance() {
-  if (serverConfig.crawler.browserWebSocketUrl) {
-    logger.info(
-      `[Crawler] Connecting to existing browser websocket address: ${serverConfig.crawler.browserWebSocketUrl}`,
-    );
-    return await chromium.connect(serverConfig.crawler.browserWebSocketUrl, {
-      // Important: using slowMo to ensure stability with remote browser
-      slowMo: 100,
-      timeout: 5000,
-    });
-  } else if (serverConfig.crawler.browserWebUrl) {
-    logger.info(
-      `[Crawler] Connecting to existing browser instance: ${serverConfig.crawler.browserWebUrl}`,
-    );
+const MAX_HTML_RESPONSE_BYTES = 5 * 1024 * 1024; // 5 MiB cap for HTML payloads
+const DOWNLOAD_WARN_THRESHOLD_MS = 10_000;
+const assetDownloadFailureCounts = new Map<string, number>();
 
-    const webUrl = new URL(serverConfig.crawler.browserWebUrl);
-    const { address } = await dns.promises.lookup(webUrl.hostname);
-    webUrl.hostname = address;
-    logger.info(
-      `[Crawler] Successfully resolved IP address, new address: ${webUrl.toString()}`,
-    );
-
-    return await chromium.connectOverCDP(webUrl.toString(), {
-      // Important: using slowMo to ensure stability with remote browser
-      slowMo: 100,
-      timeout: 5000,
-    });
-  } else {
-    logger.info(`Running in browserless mode`);
-    return undefined;
+async function ensureContentLengthWithinLimit(
+  response: Response,
+  limit: number,
+  jobId: string,
+  description: string,
+) {
+  const contentLengthHeader = response.headers.get("content-length");
+  if (contentLengthHeader) {
+    const declaredLength = Number(contentLengthHeader);
+    if (!Number.isNaN(declaredLength) && declaredLength > limit) {
+      throw new Error(
+        `[Crawler][${jobId}] ${description} exceeds maximum allowed size (${declaredLength} bytes > ${limit} bytes)`,
+      );
+    }
   }
 }
 
-async function launchBrowser() {
-  globalBrowser = undefined;
-  await browserMutex.runExclusive(async () => {
-    try {
-      globalBrowser = await startBrowserInstance();
-    } catch (e) {
-      logger.error(
-        `[Crawler] Failed to connect to the browser instance, will retry in 5 secs: ${(e as Error).stack}`,
+async function readResponseBodyWithLimit(
+  response: Response,
+  limit: number,
+  jobId: string,
+  description: string,
+): Promise<Buffer> {
+  await ensureContentLengthWithinLimit(response, limit, jobId, description);
+
+  if (!response.body) {
+    return Buffer.alloc(0);
+  }
+
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  for await (const chunk of response.body as AsyncIterable<
+    Buffer | Uint8Array | string
+  >) {
+    const buffer = Buffer.isBuffer(chunk)
+      ? chunk
+      : typeof chunk === "string"
+        ? Buffer.from(chunk)
+        : Buffer.from(chunk);
+    totalBytes += buffer.byteLength;
+    if (totalBytes > limit) {
+      throw new Error(
+        `[Crawler][${jobId}] ${description} exceeded maximum allowed size (${totalBytes} bytes > ${limit} bytes)`,
       );
-      if (isShuttingDown) {
-        logger.info("[Crawler] We're shutting down so won't retry.");
-        return;
-      }
-      setTimeout(() => {
-        launchBrowser();
-      }, 5000);
-      return;
     }
-    globalBrowser?.on("disconnected", () => {
-      if (isShuttingDown) {
-        logger.info(
-          "[Crawler] The Playwright browser got disconnected. But we're shutting down so won't restart it.",
-        );
-        return;
-      }
-      logger.info(
-        "[Crawler] The Playwright browser got disconnected. Will attempt to launch it again.",
-      );
-      launchBrowser();
-    });
-  });
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks);
 }
+
+// Browser management is now handled by browserPool
 
 export class CrawlerWorker {
   static async build() {
@@ -175,12 +161,12 @@ export class CrawlerWorker {
         );
       }
     }
-    if (!serverConfig.crawler.browserConnectOnDemand) {
-      await launchBrowser();
-    } else {
-      logger.info(
-        "[Crawler] Browser connect on demand is enabled, won't proactively start the browser instance",
-      );
+    // Initialize browser pool
+    try {
+      await browserPool.initialize();
+      logger.info("[Crawler] Browser pool initialized successfully");
+    } catch (error) {
+      logger.error("[Crawler] Failed to initialize browser pool:", error);
     }
 
     logger.info("Starting crawler worker ...");
@@ -265,8 +251,14 @@ async function browserlessCrawlPage(
   logger.info(
     `[Crawler][${jobId}] Successfully fetched the content of "${url}". Status: ${response.status}, Size: ${response.size}`,
   );
+  const htmlBuffer = await readResponseBodyWithLimit(
+    response,
+    MAX_HTML_RESPONSE_BYTES,
+    jobId,
+    "HTML response",
+  );
   return {
-    htmlContent: await response.text(),
+    htmlContent: htmlBuffer.toString("utf-8"),
     statusCode: response.status,
     screenshot: undefined,
     url: response.url,
@@ -283,26 +275,22 @@ async function crawlPage(
   statusCode: number;
   url: string;
 }> {
-  let browser: Browser | undefined;
-  if (serverConfig.crawler.browserConnectOnDemand) {
-    browser = await startBrowserInstance();
-  } else {
-    browser = globalBrowser;
-  }
-  if (!browser) {
+  // Acquire a browser context from the pool
+  const context = await browserPool.acquireContext();
+  let page: Page | undefined;
+
+  if (!context) {
+    logger.info(
+      `[Crawler][${jobId}] No browser context available, falling back to browserless mode`,
+    );
     return browserlessCrawlPage(jobId, url, abortSignal);
   }
 
-  const context = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
-    userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  });
   try {
     // Create a new page in the context
-    const page = await context.newPage();
+    page = await context.newPage();
 
-    // Apply ad blocking
+    // Apply ad blocking if available
     if (globalBlocker) {
       await globalBlocker.enableBlockingInPage(page);
     }
@@ -328,6 +316,12 @@ async function crawlPage(
 
     // Extract content from the page
     const htmlContent = await page.content();
+    const htmlSize = Buffer.byteLength(htmlContent, "utf-8");
+    if (htmlSize > MAX_HTML_RESPONSE_BYTES) {
+      throw new Error(
+        `[Crawler][${jobId}] HTML response exceeded maximum allowed size (${htmlSize} bytes > ${MAX_HTML_RESPONSE_BYTES} bytes)`,
+      );
+    }
     logger.info(`[Crawler][${jobId}] Successfully fetched the page content.`);
 
     // Take a screenshot if configured
@@ -367,11 +361,17 @@ async function crawlPage(
       url: page.url(),
     };
   } finally {
-    await context.close();
-    // Only close the browser if it was created on demand
-    if (serverConfig.crawler.browserConnectOnDemand) {
-      await browser.close();
+    try {
+      if (page && !page.isClosed()) {
+        await page.close();
+      }
+    } catch (error) {
+      logger.warn(
+        `[Crawler][${jobId}] Failed to close Playwright page cleanly: ${String(error)}`,
+      );
     }
+    // Release the context back to the pool
+    await browserPool.releaseContext(context);
   }
 }
 
@@ -412,7 +412,10 @@ function extractReadableContent(
   }
 
   const window = new JSDOM("").window;
-  const purify = DOMPurify(window);
+  // DOMPurify's WindowLike typing differs from jsdom's Window across linker modes; cast through unknown
+  const purify = (
+    DOMPurify as unknown as (w: unknown) => ReturnType<typeof DOMPurify>
+  )(window);
   const purifiedHTML = purify.sanitize(readableContent.content);
 
   logger.info(`[Crawler][${jobId}] Done extracting readable content.`);
@@ -462,14 +465,25 @@ async function downloadAndStoreFile(
   abortSignal: AbortSignal,
 ) {
   try {
-    logger.info(`[Crawler][${jobId}] Downloading ${fileType} from "${url}"`);
-    const response = await fetch(url, {
+    const safeUrl = await validateUrlForSSRF(url);
+    logger.info(
+      `[Crawler][${jobId}] Downloading ${fileType} from "${safeUrl}"`,
+    );
+    const downloadStart = Date.now();
+    const response = await fetch(safeUrl, {
       signal: abortSignal,
     });
     if (!response.ok) {
       throw new Error(`Failed to download ${fileType}: ${response.status}`);
     }
-    const buffer = await response.arrayBuffer();
+    const maxAssetBytes = serverConfig.maxAssetSizeMb * 1024 * 1024;
+    const bodyBuffer = await readResponseBodyWithLimit(
+      response,
+      maxAssetBytes,
+      jobId,
+      `${fileType} download`,
+    );
+    const buffer = bodyBuffer;
     const assetId = newAssetId();
 
     const contentType = response.headers.get("content-type");
@@ -481,18 +495,39 @@ async function downloadAndStoreFile(
       userId,
       assetId,
       metadata: { contentType },
-      asset: Buffer.from(buffer),
+      asset: buffer,
     });
 
+    const durationMs = Date.now() - downloadStart;
+    const durationMessage = `${durationMs}ms`;
+    if (durationMs > DOWNLOAD_WARN_THRESHOLD_MS) {
+      logger.warn(
+        `[Crawler][${jobId}] ${fileType} download took ${durationMessage} for ${safeUrl}`,
+      );
+    }
+
     logger.info(
-      `[Crawler][${jobId}] Downloaded ${fileType} as assetId: ${assetId}`,
+      `[Crawler][${jobId}] Downloaded ${fileType} (${buffer.byteLength} bytes) as assetId: ${assetId} in ${durationMessage}`,
     );
+
+    assetDownloadFailureCounts.delete(url);
 
     return { assetId, userId, contentType, size: buffer.byteLength };
   } catch (e) {
     logger.error(
       `[Crawler][${jobId}] Failed to download and store ${fileType}: ${e}`,
     );
+    try {
+      const failures = (assetDownloadFailureCounts.get(url) ?? 0) + 1;
+      assetDownloadFailureCounts.set(url, failures);
+      if (failures >= 3) {
+        logger.warn(
+          `[Crawler][${jobId}] ${fileType} download for ${url} has failed ${failures} times; investigate recurring issue`,
+        );
+      }
+    } catch {
+      // Telemetry is best-effort; ignore secondary errors
+    }
     return null;
   }
 }
@@ -559,13 +594,14 @@ async function getContentType(
     logger.info(
       `[Crawler][${jobId}] Attempting to determine the content-type for the url ${url}`,
     );
-    const response = await fetch(url, {
+    const safeUrl = await validateUrlForSSRF(url);
+    const response = await fetch(safeUrl, {
       method: "HEAD",
       signal: AbortSignal.any([AbortSignal.timeout(5000), abortSignal]),
     });
     const contentType = response.headers.get("content-type");
     logger.info(
-      `[Crawler][${jobId}] Content-type for the url ${url} is "${contentType}"`,
+      `[Crawler][${jobId}] Content-type for the url ${safeUrl} is "${contentType}"`,
     );
     return contentType;
   } catch (e) {
@@ -991,15 +1027,16 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
     `[Crawler][${jobId}] Will crawl "${url}" for link with id "${bookmarkId}"`,
   );
   validateUrl(url);
+  const safeUrl = await validateUrlForSSRF(url);
 
-  const contentType = await getContentType(url, jobId, job.abortSignal);
+  const contentType = await getContentType(safeUrl, jobId, job.abortSignal);
 
   // Link bookmarks get transformed into asset bookmarks if they point to a supported asset instead of a webpage
   const isPdf = contentType === ASSET_TYPES.APPLICATION_PDF;
 
   if (isPdf) {
     await handleAsAssetBookmark(
-      url,
+      safeUrl,
       "pdf",
       userId,
       jobId,
@@ -1012,7 +1049,7 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
     SUPPORTED_UPLOAD_ASSET_TYPES.has(contentType)
   ) {
     await handleAsAssetBookmark(
-      url,
+      safeUrl,
       "image",
       userId,
       jobId,
@@ -1021,10 +1058,10 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
     );
   } else {
     // Check if URL is X.com and enhanced scraping is enabled
-    if (isXComUrl(url) && ApifyService.isEnabled()) {
+    if (isXComUrl(safeUrl) && ApifyService.isEnabled()) {
       try {
         const apifyResult = await crawlXComWithApify(
-          url,
+          safeUrl,
           userId,
           jobId,
           bookmarkId,
@@ -1035,7 +1072,7 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
           // Use Apify result instead of regular crawling
           await processApifyResult(
             apifyResult,
-            url,
+            safeUrl,
             userId,
             jobId,
             bookmarkId,
@@ -1091,7 +1128,7 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
 
     // Regular crawling logic (for non-X.com URLs or when Apify fails)
     const archivalLogic = await crawlAndParseUrl(
-      url,
+      safeUrl,
       userId,
       jobId,
       bookmarkId,
@@ -1127,7 +1164,7 @@ async function runCrawler(job: DequeuedJob<ZCrawlLinkRequest>) {
     await triggerSearchReindex(bookmarkId);
 
     // Trigger a potential download of a video from the URL
-    await triggerVideoWorker(bookmarkId, url);
+    await triggerVideoWorker(bookmarkId, safeUrl);
 
     // Trigger a webhook
     await triggerWebhook(bookmarkId, "crawled");

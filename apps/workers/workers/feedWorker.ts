@@ -183,32 +183,50 @@ async function run(req: DequeuedJob<ZFeedRequestSchema>) {
 
   const trpcClient = await buildImpersonatingTRPCClient(feed.userId);
 
-  const createdBookmarks = await Promise.allSettled(
-    newEntries.map((item) =>
-      trpcClient.bookmarks.createBookmark({
+  const successfulImports: { entryId: string; bookmarkId: string }[] = [];
+  const failedImports: string[] = [];
+
+  for (const item of newEntries) {
+    try {
+      const bookmark = await trpcClient.bookmarks.createBookmark({
         type: BookmarkTypes.LINK,
         url: item.link!,
-      }),
-    ),
-  );
+      });
+      successfulImports.push({
+        entryId: item.guid!,
+        bookmarkId: bookmark.id,
+      });
+    } catch (error) {
+      failedImports.push(item.guid!);
+      logger.error(
+        `[feed][${jobId}] Failed to create bookmark for feed entry ${item.guid}: ${error}`,
+      );
+    }
+  }
 
-  // It's ok if this is not transactional as the bookmarks will get linked in the next iteration.
-  await db
-    .insert(rssFeedImportsTable)
-    .values(
-      newEntries.map((item, idx) => {
-        const b = createdBookmarks[idx];
-        return {
-          entryId: item.guid!,
-          bookmarkId: b.status === "fulfilled" ? b.value.id : null,
-          rssFeedId: feed.id,
-        };
-      }),
-    )
-    .onConflictDoNothing();
+  if (successfulImports.length > 0) {
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(rssFeedImportsTable)
+        .values(
+          successfulImports.map((item) => ({
+            entryId: item.entryId,
+            bookmarkId: item.bookmarkId,
+            rssFeedId: feed.id,
+          })),
+        )
+        .onConflictDoNothing();
+    });
+  }
+
+  if (failedImports.length > 0) {
+    logger.warn(
+      `[feed][${jobId}] Deferred ${failedImports.length} feed entries due to bookmark creation failures. Entries will retry on next scheduled run.`,
+    );
+  }
 
   logger.info(
-    `[feed][${jobId}] Successfully imported ${newEntries.length} new enteries from feed "${feed.name}" (${feed.id}).`,
+    `[feed][${jobId}] Successfully imported ${successfulImports.length} new entries from feed "${feed.name}" (${feed.id}).`,
   );
 
   return Promise.resolve();

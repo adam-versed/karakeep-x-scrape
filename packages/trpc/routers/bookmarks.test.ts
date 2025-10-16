@@ -534,7 +534,7 @@ describe("Bookmark Routes", () => {
       .set({ crawlStatus: "failure" })
       .where(eq(bookmarkLinks.id, brokenBookmark.id));
 
-    const result = await api.getBrokenLinks();
+    const result = await api.getBrokenLinks({ limit: 20 });
     expect(result.bookmarks.length).toBeGreaterThan(0);
     expect(
       result.bookmarks.some((b) => b.id === brokenBookmark.id),
@@ -547,7 +547,7 @@ describe("Bookmark Routes", () => {
       .update(bookmarkLinks)
       .set({ crawlStatus: "success" })
       .where(eq(bookmarkLinks.id, brokenBookmark.id));
-    const emptyResult = await api.getBrokenLinks();
+    const emptyResult = await api.getBrokenLinks({ limit: 20 });
     expect(emptyResult.bookmarks.length).toEqual(0);
   });
 });

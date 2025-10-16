@@ -52,6 +52,15 @@ Karakeep (previously Hoarder) is a self-hostable bookmark-everything app with a 
 - [Security Considerations](https://docs.karakeep.app/security-considerations)
 - [Development](https://docs.karakeep.app/Development/setup)
 
+### Install
+
+```bash
+corepack enable
+pnpm install
+```
+
+Tip: to surface missing direct dependencies, you can also run `pnpm install --config.node-linker=isolated` locally (experimental). If something breaks under isolated linking, add the dependency explicitly to the affected package.
+
 ## Demo
 
 You can access the demo at [https://try.karakeep.app](https://try.karakeep.app). Login with the following creds:

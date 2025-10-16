@@ -14,6 +14,9 @@ concurrency:
 # You can leverage Vercel Remote Caching with Turbo to speed up your builds
 env:
   FORCE_COLOR: 3
+  # Optional: Turbo Remote Caching (set these in repo or org secrets to enable)
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
 jobs:
   lint:
@@ -67,6 +70,28 @@ jobs:
       - name: E2E Tests
         working-directory: packages/e2e_tests
         run: pnpm test
+
+  prune-preview:
+    name: Turbo Prune Preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup
+        uses: ./tooling/github/setup
+      - name: Prune web workspace (docker)
+        run: pnpm dlx turbo prune --scope @karakeep/web --docker --out-dir out-web
+      - name: Upload pruned web workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruned-web
+          path: out-web
+      - name: Prune workers workspace (docker)
+        run: pnpm dlx turbo prune --scope @karakeep/workers --docker --out-dir out-workers
+      - name: Upload pruned workers workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruned-workers
+          path: out-workers
   open-api-spec:
     runs-on: ubuntu-latest
     steps:
