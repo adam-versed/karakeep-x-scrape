@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import crypto from "node:crypto";
+import { describe, expect, it } from "vitest";
+
 import { timingSafeStringCompare } from "../../validation";
 
 describe("Timing-Safe String Comparison", () => {
@@ -16,7 +17,7 @@ describe("Timing-Safe String Comparison", () => {
         "API_KEY_PREFIX_1234567890abcdef_fedcba0987654321",
       ];
 
-      testCases.forEach(str => {
+      testCases.forEach((str) => {
         expect(timingSafeStringCompare(str, str)).toBe(true);
       });
     });
@@ -60,7 +61,7 @@ describe("Timing-Safe String Comparison", () => {
       // Test strings that differ at various positions
       const testStrings = [
         "0k_1234567890abcdef_fedcba0987654321", // Position 0
-        "k0_1234567890abcdef_fedcba0987654321", // Position 1  
+        "k0_1234567890abcdef_fedcba0987654321", // Position 1
         "kk01234567890abcdef_fedcba0987654321", // Position 2
         "kk_0234567890abcdef_fedcba0987654321", // Position 3
         "kk_1034567890abcdef_fedcba0987654321", // Position 4
@@ -98,7 +99,9 @@ describe("Timing-Safe String Comparison", () => {
 
       // Calculate coefficient of variation across all positions
       const mean = measurements.reduce((a, b) => a + b) / measurements.length;
-      const variance = measurements.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / measurements.length;
+      const variance =
+        measurements.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) /
+        measurements.length;
       const stdDev = Math.sqrt(variance);
       const coefficientOfVariation = stdDev / mean;
 
@@ -114,7 +117,7 @@ describe("Timing-Safe String Comparison", () => {
       // Test strings of different lengths
       const testPairs = [
         ["a", "b"],
-        ["ab", "cd"], 
+        ["ab", "cd"],
         ["abc", "def"],
         ["abcd", "efgh"],
         ["short", "other"],
@@ -132,13 +135,16 @@ describe("Timing-Safe String Comparison", () => {
           pairTimings.push(Number(end - start));
         }
 
-        const avgTiming = pairTimings.reduce((a, b) => a + b) / pairTimings.length;
+        const avgTiming =
+          pairTimings.reduce((a, b) => a + b) / pairTimings.length;
         timings.push(avgTiming);
       });
 
       // Different length comparisons should return quickly and consistently
       const mean = timings.reduce((a, b) => a + b) / timings.length;
-      const variance = timings.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / timings.length;
+      const variance =
+        timings.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) /
+        timings.length;
       const stdDev = Math.sqrt(variance);
       const coefficientOfVariation = stdDev / mean;
 
@@ -152,12 +158,12 @@ describe("Timing-Safe String Comparison", () => {
 
       // Simulate different attack scenarios
       const attackStrings = {
-        "early_diff": "0k_1234567890abcdef_fedcba0987654321",
-        "middle_diff": "kk_1234567890abcd00_fedcba0987654321", 
-        "late_diff": "kk_1234567890abcdef_fedcba098765432f",
-        "prefix_match": "kk_0000000000000000_fedcba0987654321",
-        "suffix_match": "kk_1234567890abcdef_0000000000000000",
-        "random_same_len": "xx_abcdefghijklmnop_0123456789abcdef",
+        early_diff: "0k_1234567890abcdef_fedcba0987654321",
+        middle_diff: "kk_1234567890abcd00_fedcba0987654321",
+        late_diff: "kk_1234567890abcdef_fedcba098765432f",
+        prefix_match: "kk_0000000000000000_fedcba0987654321",
+        suffix_match: "kk_1234567890abcdef_0000000000000000",
+        random_same_len: "xx_abcdefghijklmnop_0123456789abcdef",
       };
 
       const iterations = 100;
@@ -180,9 +186,11 @@ describe("Timing-Safe String Comparison", () => {
       });
 
       // All attack types should take similar time
-      const allAverages = averages.map(a => a.avg);
+      const allAverages = averages.map((a) => a.avg);
       const mean = allAverages.reduce((a, b) => a + b) / allAverages.length;
-      const variance = allAverages.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / allAverages.length;
+      const variance =
+        allAverages.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) /
+        allAverages.length;
       const stdDev = Math.sqrt(variance);
       const coefficientOfVariation = stdDev / mean;
 
@@ -218,7 +226,7 @@ describe("Timing-Safe String Comparison", () => {
         "test\0hidden", // Embedded null
       ];
 
-      edgeCases.forEach(str => {
+      edgeCases.forEach((str) => {
         expect(() => timingSafeStringCompare(str, str)).not.toThrow();
         expect(timingSafeStringCompare(str, str)).toBe(true);
         expect(timingSafeStringCompare(str, "different")).toBe(false);
@@ -237,10 +245,10 @@ describe("Timing-Safe String Comparison", () => {
         "whitespace_\t\n\r_chars",
       ];
 
-      testStrings.forEach(str => {
+      testStrings.forEach((str) => {
         // Same string should always compare equal
         expect(timingSafeStringCompare(str, str)).toBe(true);
-        
+
         // Different strings should compare false
         const modified = str + "_suffix";
         expect(timingSafeStringCompare(str, modified)).toBe(false);
@@ -250,13 +258,13 @@ describe("Timing-Safe String Comparison", () => {
 
   describe("Performance Characteristics", () => {
     it("should have linear time complexity", () => {
-      const measurements: Array<{ length: number; time: number }> = [];
+      const measurements: { length: number; time: number }[] = [];
       const iterations = 50;
 
       // Test with strings of increasing length
       const lengths = [10, 50, 100, 250, 500, 1000];
 
-      lengths.forEach(length => {
+      lengths.forEach((length) => {
         const str1 = "a".repeat(length);
         const str2 = "b".repeat(length);
         const timings: number[] = [];
@@ -276,10 +284,10 @@ describe("Timing-Safe String Comparison", () => {
       // Check that longer strings don't take exponentially longer
       const firstMeasurement = measurements[0];
       const lastMeasurement = measurements[measurements.length - 1];
-      
+
       const lengthRatio = lastMeasurement.length / firstMeasurement.length;
       const timeRatio = lastMeasurement.time / firstMeasurement.time;
-      
+
       // Time ratio should be roughly proportional to length ratio
       // Allow for some overhead but shouldn't be exponential
       expect(timeRatio).toBeLessThan(lengthRatio * 3);
@@ -288,16 +296,16 @@ describe("Timing-Safe String Comparison", () => {
     it("should be fast enough for production use", () => {
       const testString = "kk_1234567890abcdef_fedcba0987654321";
       const iterations = 1000;
-      
+
       const start = Date.now();
-      
+
       for (let i = 0; i < iterations; i++) {
         timingSafeStringCompare(testString, testString);
       }
-      
+
       const duration = Date.now() - start;
       const avgPerComparison = duration / iterations;
-      
+
       // Should be very fast - less than 1ms per comparison on average
       expect(avgPerComparison).toBeLessThan(1);
     });
@@ -321,44 +329,36 @@ describe("Timing-Safe String Comparison", () => {
 
     it("should handle null and undefined gracefully", () => {
       // These should be caught by TypeScript, but test runtime behavior
-      try {
-        timingSafeStringCompare(null as any, "test");
-        expect.fail("Should have thrown for null input");
-      } catch (error) {
-        expect(error).toBeDefined();
+      {
+        const unsafeCompare = timingSafeStringCompare as unknown as (
+          a: unknown,
+          b: unknown,
+        ) => boolean;
+        const call = () => unsafeCompare(null, "test");
+        expect(call).toThrow();
       }
-      
-      try {
-        timingSafeStringCompare("test", undefined as any);
-        expect.fail("Should have thrown for undefined input");
-      } catch (error) {
-        expect(error).toBeDefined();
+
+      {
+        const unsafeCompare = timingSafeStringCompare as unknown as (
+          a: unknown,
+          b: unknown,
+        ) => boolean;
+        const call = () => unsafeCompare("test", undefined);
+        expect(call).toThrow();
       }
     });
 
     it("should handle non-string inputs", () => {
-      const nonStringInputs = [
-        123,
-        true,
-        {},
-        [],
-        Symbol("test"),
-      ];
+      const nonStringInputs = [123, true, {}, [], Symbol("test")];
 
-      nonStringInputs.forEach(input => {
-        try {
-          timingSafeStringCompare(input as any, "test");
-          expect.fail(`Should have thrown for input: ${typeof input}`);
-        } catch (error) {
-          expect(error).toBeDefined();
-        }
-        
-        try {
-          timingSafeStringCompare("test", input as any);
-          expect.fail(`Should have thrown for input: ${typeof input}`);
-        } catch (error) {
-          expect(error).toBeDefined();
-        }
+      nonStringInputs.forEach((input) => {
+        const unsafeCompare = timingSafeStringCompare as unknown as (
+          a: unknown,
+          b: unknown,
+        ) => boolean;
+
+        expect(() => unsafeCompare(input, "test")).toThrow();
+        expect(() => unsafeCompare("test", input)).toThrow();
       });
     });
 
@@ -366,10 +366,10 @@ describe("Timing-Safe String Comparison", () => {
       // Test the function's error handling when Buffer.from might fail
       const invalidInputs = [
         "\uDC00", // Invalid Unicode surrogate
-        String.fromCharCode(0xFFFE), // Invalid Unicode
+        String.fromCharCode(0xfffe), // Invalid Unicode
       ];
 
-      invalidInputs.forEach(input => {
+      invalidInputs.forEach((input) => {
         // Should not throw, even with problematic Unicode
         expect(() => timingSafeStringCompare(input, input)).not.toThrow();
       });
@@ -391,7 +391,7 @@ describe("Timing-Safe String Comparison", () => {
       const timings: number[] = [];
       const iterations = 100;
 
-      attempts.forEach(attempt => {
+      attempts.forEach((attempt) => {
         const attemptTimings: number[] = [];
 
         for (let i = 0; i < iterations; i++) {
@@ -401,7 +401,8 @@ describe("Timing-Safe String Comparison", () => {
           attemptTimings.push(Number(end - start));
         }
 
-        const avgTiming = attemptTimings.reduce((a, b) => a + b) / attemptTimings.length;
+        const avgTiming =
+          attemptTimings.reduce((a, b) => a + b) / attemptTimings.length;
         timings.push(avgTiming);
       });
 
@@ -411,7 +412,7 @@ describe("Timing-Safe String Comparison", () => {
         const timeDiff = Math.abs(sameLengthTimings[0] - sameLengthTimings[1]);
         const avgTime = (sameLengthTimings[0] + sameLengthTimings[1]) / 2;
         const relativeDiff = timeDiff / avgTime;
-        
+
         expect(relativeDiff).toBeLessThan(2.0); // Allow significant variance in test environment
       }
     });
@@ -419,25 +420,27 @@ describe("Timing-Safe String Comparison", () => {
     it("should provide consistent results under load", async () => {
       const testString = "load_test_string_123";
       const wrongString = "load_test_string_456";
-      
+
       // Simulate high load with concurrent comparisons
-      const concurrentTasks = Array(100).fill(null).map(async () => {
-        const results: boolean[] = [];
-        
-        for (let i = 0; i < 50; i++) {
-          results.push(timingSafeStringCompare(testString, testString));
-          results.push(timingSafeStringCompare(testString, wrongString));
-        }
-        
-        return results;
-      });
+      const concurrentTasks = Array(100)
+        .fill(null)
+        .map(async () => {
+          const results: boolean[] = [];
+
+          for (let i = 0; i < 50; i++) {
+            results.push(timingSafeStringCompare(testString, testString));
+            results.push(timingSafeStringCompare(testString, wrongString));
+          }
+
+          return results;
+        });
 
       const allResults = (await Promise.all(concurrentTasks)).flat();
-      
+
       // Should have consistent results: 50% true, 50% false
-      const trueCount = allResults.filter(r => r === true).length;
-      const falseCount = allResults.filter(r => r === false).length;
-      
+      const trueCount = allResults.filter((r) => r === true).length;
+      const falseCount = allResults.filter((r) => r === false).length;
+
       expect(trueCount).toBe(falseCount); // Equal number of true/false
       expect(trueCount + falseCount).toBe(allResults.length);
     });

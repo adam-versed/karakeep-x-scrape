@@ -1,41 +1,45 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import crypto from "node:crypto";
-import { TRPCError } from "@trpc/server";
-import { timingSafeStringCompare, validateAssetId, validateUserId } from "@karakeep/shared/validation";
-import * as bcrypt from "bcryptjs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  timingSafeStringCompare,
+  validateAssetId,
+  validateUserId,
+} from "@karakeep/shared/validation";
 
 // Test function to replicate parseApiKey logic without database dependency
-function testParseApiKeyFormat(plain: string) {
+function testParseApiKeyFormat(plain: unknown) {
   // Replicate the validation logic from auth.ts
   if (typeof plain !== "string" || plain.length === 0) {
     throw new Error("Invalid API key format: empty or non-string value");
   }
-  
+
   if (plain.length > 512) {
     throw new Error("Invalid API key format: too long");
   }
-  
+
   const parts = plain.split("_");
   if (parts.length !== 3) {
-    throw new Error(`Invalid API key format: expected 3 segments, found ${parts.length}`);
+    throw new Error(
+      `Invalid API key format: expected 3 segments, found ${parts.length}`,
+    );
   }
-  
+
   if (!timingSafeStringCompare(parts[0], "ak1")) {
     throw new Error("Invalid API key format: incorrect prefix");
   }
-  
+
   const hexPattern = /^[a-fA-F0-9]+$/;
   if (!hexPattern.test(parts[1]) || !hexPattern.test(parts[2])) {
     throw new Error("Invalid API key format: malformed key components");
   }
-  
+
   return {
     keyId: parts[1],
     keySecret: parts[2],
   };
 }
 
-// Test the API key security functions 
+// Test the API key security functions
 describe("API Key Security", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -52,7 +56,9 @@ describe("API Key Security", () => {
     });
 
     it("should return false for strings of different lengths", () => {
-      expect(timingSafeStringCompare("short", "much_longer_string")).toBe(false);
+      expect(timingSafeStringCompare("short", "much_longer_string")).toBe(
+        false,
+      );
     });
 
     it("should return false for empty vs non-empty strings", () => {
@@ -69,26 +75,21 @@ describe("API Key Security", () => {
       const correctKey = "ak1_1234567890abcdef_fedcba0987654321";
       const wrongKey1 = "ak1_0000000000000000_fedcba0987654321"; // Different keyId
       const wrongKey2 = "ak1_1234567890abcdef_0000000000000000"; // Different keySecret
-      
+
       // Test that timing-safe comparison behaves consistently
       // In test environments, timing can be highly variable, so we focus on correctness
       expect(timingSafeStringCompare(correctKey, correctKey)).toBe(true);
       expect(timingSafeStringCompare(correctKey, wrongKey1)).toBe(false);
       expect(timingSafeStringCompare(correctKey, wrongKey2)).toBe(false);
-      
+
       // Verify that the function uses crypto.timingSafeEqual internally
-      expect(typeof timingSafeStringCompare).toBe('function');
+      expect(typeof timingSafeStringCompare).toBe("function");
     });
   });
 
   describe("validateAssetId", () => {
     it("should accept valid asset IDs", () => {
-      const validIds = [
-        "bookmark_123",
-        "list_456", 
-        "tag_789",
-        "user_abc123"
-      ];
+      const validIds = ["bookmark_123", "list_456", "tag_789", "user_abc123"];
 
       for (const id of validIds) {
         expect(() => validateAssetId(id)).not.toThrow();
@@ -103,7 +104,7 @@ describe("API Key Security", () => {
         "bookmark_<script>alert('xss')</script>",
         "list_" + "a".repeat(300), // Too long
         "tag_../../../sensitive_file",
-        "user_null\x00byte"
+        "user_null\x00byte",
       ];
 
       for (const id of invalidIds) {
@@ -114,11 +115,7 @@ describe("API Key Security", () => {
 
   describe("validateUserId", () => {
     it("should accept valid user IDs", () => {
-      const validIds = [
-        "user123",
-        "abc-def-ghi",
-        "user_12345"
-      ];
+      const validIds = ["user123", "abc-def-ghi", "user_12345"];
 
       for (const id of validIds) {
         expect(() => validateUserId(id)).not.toThrow();
@@ -132,7 +129,7 @@ describe("API Key Security", () => {
         "../admin",
         "<script>alert('xss')</script>",
         "a".repeat(300), // Too long
-        "user\x00null"
+        "user\x00null",
       ];
 
       for (const id of invalidIds) {
@@ -142,11 +139,10 @@ describe("API Key Security", () => {
   });
 
   describe("API Key Format Validation", () => {
-
     it("should validate correct API key format", () => {
       const validKey = "ak1_1234567890abcdef_fedcba0987654321";
       const result = testParseApiKeyFormat(validKey);
-      
+
       expect(result.keyId).toBe("1234567890abcdef");
       expect(result.keySecret).toBe("fedcba0987654321");
     });
@@ -154,7 +150,7 @@ describe("API Key Security", () => {
     it("should reject malformed API keys", () => {
       const malformedKeys = [
         "",
-        "not_an_api_key", 
+        "not_an_api_key",
         "ak1_",
         "ak1_only_one_part",
         "wrong_prefix_12345_67890",
@@ -185,14 +181,7 @@ describe("API Key Security", () => {
     });
 
     it("should handle non-string inputs safely", () => {
-      const invalidInputs = [
-        null,
-        undefined,
-        123,
-        {},
-        [],
-        true,
-      ] as any[];
+      const invalidInputs = [null, undefined, 123, {}, [], true] as unknown[];
 
       for (const input of invalidInputs) {
         expect(() => testParseApiKeyFormat(input)).toThrow();
@@ -203,12 +192,14 @@ describe("API Key Security", () => {
       // Test that wrong prefixes fail with timing-safe comparison
       const wrongPrefixKeys = [
         "kk1_1234567890abcdef_fedcba0987654321",
-        "xx1_1234567890abcdef_fedcba0987654321", 
-        "ak2_1234567890abcdef_fedcba0987654321"
+        "xx1_1234567890abcdef_fedcba0987654321",
+        "ak2_1234567890abcdef_fedcba0987654321",
       ];
 
       for (const key of wrongPrefixKeys) {
-        expect(() => testParseApiKeyFormat(key)).toThrow("Invalid API key format: incorrect prefix");
+        expect(() => testParseApiKeyFormat(key)).toThrow(
+          "Invalid API key format: incorrect prefix",
+        );
       }
     });
   });
@@ -224,35 +215,56 @@ describe("API Key Security", () => {
 
       // Verify that all wrong prefixes are rejected consistently
       for (const testKey of testKeys) {
-        expect(() => testParseApiKeyFormat(testKey)).toThrow("Invalid API key format: incorrect prefix");
+        expect(() => testParseApiKeyFormat(testKey)).toThrow(
+          "Invalid API key format: incorrect prefix",
+        );
       }
-      
+
       // Verify that the timing-safe comparison is being used
       // (in production, this prevents timing attacks on the prefix comparison)
-      expect(() => testParseApiKeyFormat("wrong_1234567890abcdef_fedcba0987654321")).toThrow("incorrect prefix");
+      expect(() =>
+        testParseApiKeyFormat("wrong_1234567890abcdef_fedcba0987654321"),
+      ).toThrow("incorrect prefix");
     });
 
     it("should have consistent error handling for different error types", () => {
       // Test malformed hex components (3 segments, valid prefix, invalid hex)
-      expect(() => testParseApiKeyFormat("ak1_invalidhexGHIJKLMNOP_fedcba0987654321")).toThrow("malformed key components");
-      expect(() => testParseApiKeyFormat("ak1_1234567890abcdef_invalidhexGHIJKLMNOP")).toThrow("malformed key components");
-      expect(() => testParseApiKeyFormat("ak1__fedcba0987654321")).toThrow("malformed key components");
-      expect(() => testParseApiKeyFormat("ak1_1234567890abcdef_")).toThrow("malformed key components");
-      
+      expect(() =>
+        testParseApiKeyFormat("ak1_invalidhexGHIJKLMNOP_fedcba0987654321"),
+      ).toThrow("malformed key components");
+      expect(() =>
+        testParseApiKeyFormat("ak1_1234567890abcdef_invalidhexGHIJKLMNOP"),
+      ).toThrow("malformed key components");
+      expect(() => testParseApiKeyFormat("ak1__fedcba0987654321")).toThrow(
+        "malformed key components",
+      );
+      expect(() => testParseApiKeyFormat("ak1_1234567890abcdef_")).toThrow(
+        "malformed key components",
+      );
+
       // Test wrong number of segments
-      expect(() => testParseApiKeyFormat("invalidformatkey")).toThrow("expected 3 segments");
+      expect(() => testParseApiKeyFormat("invalidformatkey")).toThrow(
+        "expected 3 segments",
+      );
       expect(() => testParseApiKeyFormat("ak1")).toThrow("expected 3 segments");
-      expect(() => testParseApiKeyFormat("ak1_onlyonesegment")).toThrow("expected 3 segments");
-      
+      expect(() => testParseApiKeyFormat("ak1_onlyonesegment")).toThrow(
+        "expected 3 segments",
+      );
+
       // Test wrong prefix (3 segments, but wrong prefix)
-      expect(() => testParseApiKeyFormat("wrong_1234567890abcdef_fedcba0987654321")).toThrow("incorrect prefix");
+      expect(() =>
+        testParseApiKeyFormat("wrong_1234567890abcdef_fedcba0987654321"),
+      ).toThrow("incorrect prefix");
     });
   });
 
   describe("Error Message Security", () => {
     it("should not leak sensitive information in error messages", () => {
       const testCases = [
-        { input: "ak1_1234567890abcdef_fedcba0987654321", type: "valid format" },
+        {
+          input: "ak1_1234567890abcdef_fedcba0987654321",
+          type: "valid format",
+        },
         { input: "invalid_format_key", type: "invalid format" },
         { input: "ak1_invalid_hex_chars_abc", type: "invalid hex" },
       ];
@@ -260,14 +272,16 @@ describe("API Key Security", () => {
       for (const testCase of testCases) {
         try {
           testParseApiKeyFormat(testCase.input);
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const message =
+            error instanceof Error ? error.message : String(error);
           // Error messages should not leak sensitive information
-          expect(error.message).not.toContain("keyId");
-          expect(error.message).not.toContain("keySecret");
-          expect(error.message).not.toContain("hash");
-          expect(error.message).not.toContain("database");
-          expect(error.message).not.toContain("1234567890abcdef");
-          expect(error.message).not.toContain("fedcba0987654321");
+          expect(message).not.toContain("keyId");
+          expect(message).not.toContain("keySecret");
+          expect(message).not.toContain("hash");
+          expect(message).not.toContain("database");
+          expect(message).not.toContain("1234567890abcdef");
+          expect(message).not.toContain("fedcba0987654321");
         }
       }
     });
@@ -275,7 +289,11 @@ describe("API Key Security", () => {
 
   describe("Security Enhancement Validation", () => {
     it("should properly validate hex patterns", () => {
-      const validHex = ["1234567890abcdef", "ABCDEF1234567890", "0123456789abcdef"];
+      const validHex = [
+        "1234567890abcdef",
+        "ABCDEF1234567890",
+        "0123456789abcdef",
+      ];
       const invalidHex = ["ghijklmnop", "12345G", "../etc/passwd", "<script>"];
 
       const hexPattern = /^[a-fA-F0-9]+$/;
@@ -291,26 +309,26 @@ describe("API Key Security", () => {
 
     it("should handle concurrent validation attempts", async () => {
       const testKey = "ak1_1234567890abcdef_fedcba0987654321";
-      
-      // Simulate concurrent validation attempts
-      const promises = Array(10).fill(null).map(() => 
-        Promise.resolve().then(() => {
-          try {
-            return testParseApiKeyFormat(testKey);
-          } catch (err) {
-            return err;
-          }
-        })
+
+      // Simulate concurrent validation attempts (all should succeed)
+      interface ApiKeyParts {
+        keyId: string;
+        keySecret: string;
+      }
+      const promises = Array.from({ length: 10 }, () =>
+        Promise.resolve().then(
+          () => testParseApiKeyFormat(testKey) as ApiKeyParts,
+        ),
       );
 
-      const results = await Promise.all(promises);
-      
+      const results: ApiKeyParts[] = await Promise.all(promises);
+
       // All should succeed with same result
-      results.forEach(result => {
-        expect(result).toHaveProperty('keyId');
-        expect(result).toHaveProperty('keySecret');
-        expect((result as any).keyId).toBe("1234567890abcdef");
-        expect((result as any).keySecret).toBe("fedcba0987654321");
+      results.forEach((result) => {
+        expect(result).toHaveProperty("keyId");
+        expect(result).toHaveProperty("keySecret");
+        expect(result.keyId).toBe("1234567890abcdef");
+        expect(result.keySecret).toBe("fedcba0987654321");
       });
     });
   });

@@ -1,8 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
-import path from "node:path";
 import os from "node:os";
-import { validateAssetId, validateUserId, safePathJoin } from "../../validation";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import {
+  safePathJoin,
+  validateAssetId,
+  validateUserId,
+} from "../../validation";
 
 describe("Path Traversal Protection", () => {
   let tempDir: string;
@@ -30,7 +35,7 @@ describe("Path Traversal Protection", () => {
         "A-B_C123",
       ];
 
-      validIds.forEach(id => {
+      validIds.forEach((id) => {
         expect(() => validateAssetId(id)).not.toThrow();
         expect(validateAssetId(id)).toBe(id);
       });
@@ -52,7 +57,7 @@ describe("Path Traversal Protection", () => {
         "...///..////",
       ];
 
-      maliciousIds.forEach(id => {
+      maliciousIds.forEach((id) => {
         expect(() => validateAssetId(id)).toThrow();
       });
     });
@@ -69,7 +74,7 @@ describe("Path Traversal Protection", () => {
         "\\asset",
       ];
 
-      invalidIds.forEach(id => {
+      invalidIds.forEach((id) => {
         expect(() => validateAssetId(id)).toThrow();
       });
     });
@@ -83,7 +88,7 @@ describe("Path Traversal Protection", () => {
         "asset?query",
         "asset*wildcard",
         "asset:colon",
-        "asset\"quote",
+        'asset"quote',
         "asset'quote",
         "asset\ttab",
         "asset\nnewline",
@@ -91,7 +96,7 @@ describe("Path Traversal Protection", () => {
         "asset\0null",
       ];
 
-      invalidIds.forEach(id => {
+      invalidIds.forEach((id) => {
         expect(() => validateAssetId(id)).toThrow("illegal characters");
       });
     });
@@ -99,7 +104,7 @@ describe("Path Traversal Protection", () => {
     it("should reject asset IDs that are too long", () => {
       const longId = "a".repeat(256);
       expect(() => validateAssetId(longId)).toThrow("too long");
-      
+
       // Exactly 255 characters should be OK
       const maxLengthId = "a".repeat(255);
       expect(() => validateAssetId(maxLengthId)).not.toThrow();
@@ -122,7 +127,7 @@ describe("Path Traversal Protection", () => {
         "A-B_C123",
       ];
 
-      validIds.forEach(id => {
+      validIds.forEach((id) => {
         expect(() => validateUserId(id)).not.toThrow();
         expect(validateUserId(id)).toBe(id);
       });
@@ -142,7 +147,7 @@ describe("Path Traversal Protection", () => {
         "..\\",
       ];
 
-      maliciousIds.forEach(id => {
+      maliciousIds.forEach((id) => {
         expect(() => validateUserId(id)).toThrow();
       });
     });
@@ -150,7 +155,7 @@ describe("Path Traversal Protection", () => {
     it("should reject user IDs that are too long", () => {
       const longId = "u".repeat(256);
       expect(() => validateUserId(longId)).toThrow("too long");
-      
+
       // Exactly 255 characters should be OK
       const maxLengthId = "u".repeat(255);
       expect(() => validateUserId(maxLengthId)).not.toThrow();
@@ -160,11 +165,11 @@ describe("Path Traversal Protection", () => {
   describe("safePathJoin", () => {
     it("should join paths safely for normal cases", () => {
       expect(safePathJoin("/base", "folder", "file.txt")).toBe(
-        path.join("/base", "folder", "file.txt")
+        path.join("/base", "folder", "file.txt"),
       );
-      
+
       expect(safePathJoin(tempDir, "assets", "user123")).toBe(
-        path.join(tempDir, "assets", "user123")
+        path.join(tempDir, "assets", "user123"),
       );
     });
 
@@ -177,20 +182,26 @@ describe("Path Traversal Protection", () => {
         ["/base", "folder\\..\\..", "file"],
       ];
 
-      maliciousPaths.forEach(pathParts => {
-        expect(() => safePathJoin(pathParts[0], ...pathParts.slice(1))).toThrow("path traversal");
+      maliciousPaths.forEach((pathParts) => {
+        expect(() => safePathJoin(pathParts[0], ...pathParts.slice(1))).toThrow(
+          "path traversal",
+        );
       });
     });
 
     it("should handle relative paths safely", () => {
       expect(safePathJoin("base", "folder", "file.txt")).toBe(
-        path.join("base", "folder", "file.txt")
+        path.join("base", "folder", "file.txt"),
       );
     });
 
     it("should reject absolute path injections", () => {
-      expect(() => safePathJoin("/base", "/etc/passwd")).toThrow("path traversal");
-      expect(() => safePathJoin("/base", "C:\\Windows\\System32")).toThrow("path traversal");
+      expect(() => safePathJoin("/base", "/etc/passwd")).toThrow(
+        "path traversal",
+      );
+      expect(() => safePathJoin("/base", "C:\\Windows\\System32")).toThrow(
+        "path traversal",
+      );
     });
 
     it("should handle edge cases", () => {
@@ -203,24 +214,14 @@ describe("Path Traversal Protection", () => {
   describe("Asset Directory Security", () => {
     // Mock the assetdb functions for testing
     let getAssetDir: (userId: string, assetId: string) => string;
-    
+
     beforeEach(() => {
-      // Import the function we're testing (assuming it's been implemented)
-      try {
-        const assetdb = require("@karakeep/shared/assetdb");
-        getAssetDir = assetdb.getAssetDir || ((userId: string, assetId: string) => {
-          const validUserId = validateUserId(userId);
-          const validAssetId = validateAssetId(assetId);
-          return safePathJoin("/assets", validUserId, validAssetId);
-        });
-      } catch {
-        // Fallback implementation for testing
-        getAssetDir = (userId: string, assetId: string) => {
-          const validUserId = validateUserId(userId);
-          const validAssetId = validateAssetId(assetId);
-          return safePathJoin("/assets", validUserId, validAssetId);
-        };
-      }
+      // Refactored setup: use a local implementation suitable for tests
+      getAssetDir = (userId: string, assetId: string) => {
+        const validUserId = validateUserId(userId);
+        const validAssetId = validateAssetId(assetId);
+        return safePathJoin("/assets", validUserId, validAssetId);
+      };
     });
 
     it("should create safe asset directories", () => {
@@ -263,15 +264,15 @@ describe("Path Traversal Protection", () => {
         "file.txt\0.exe",
       ];
 
-      dangerousNames.forEach(name => {
+      dangerousNames.forEach((name) => {
         // The sanitization should remove path components and null bytes
-        const sanitized = path.basename(name).replace(/[\0]/g, "");
+        const sanitized = path.basename(name).split("\u0000").join("");
         // path.basename handles most path traversal, but some edge cases remain
         // The key is that dangerous paths are neutralized
         expect(sanitized).not.toContain("/");
         expect(sanitized).not.toContain("\0");
         // On Windows, path.basename might not fully clean backslashes in all cases
-        if (process.platform !== 'win32') {
+        if (process.platform !== "win32") {
           expect(sanitized).not.toContain("\\");
         }
       });
@@ -281,7 +282,7 @@ describe("Path Traversal Protection", () => {
       const longName = "a".repeat(300) + ".txt";
       const ext = path.extname(longName);
       const truncated = longName.substring(0, 255 - ext.length) + ext;
-      
+
       expect(truncated.length).toBeLessThanOrEqual(255);
       expect(truncated.endsWith(".txt")).toBe(true);
     });
@@ -293,7 +294,7 @@ describe("Path Traversal Protection", () => {
       const assetsDir = path.join(tempDir, "assets");
       const userDir = path.join(assetsDir, "user123");
       const sensitiveFile = path.join(tempDir, "sensitive.txt");
-      
+
       fs.mkdirSync(userDir, { recursive: true });
       fs.writeFileSync(sensitiveFile, "sensitive data");
 
@@ -302,8 +303,9 @@ describe("Path Traversal Protection", () => {
         const maliciousAssetId = "../../../sensitive.txt";
         validateAssetId(maliciousAssetId);
         expect.fail("Should have thrown an error");
-      } catch (error: any) {
-        expect(error.message).toContain("illegal characters");
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        expect(message).toContain("illegal characters");
       }
 
       // Verify the sensitive file still exists and wasn't accessed
@@ -313,13 +315,13 @@ describe("Path Traversal Protection", () => {
     it("should work correctly with valid paths", () => {
       const assetsDir = path.join(tempDir, "assets");
       const userDir = path.join(assetsDir, "user123");
-      
+
       fs.mkdirSync(userDir, { recursive: true });
-      
+
       const validAssetId = "valid-asset-123";
       const validatedId = validateAssetId(validAssetId);
       const assetPath = path.join(userDir, validatedId);
-      
+
       // Should be able to create a file with a valid asset ID
       fs.writeFileSync(assetPath, "test content");
       expect(fs.existsSync(assetPath)).toBe(true);
@@ -337,7 +339,7 @@ describe("Path Traversal Protection", () => {
         "asset％２ｅ％２ｅ％２ｆ", // Full-width URL encoding
       ];
 
-      unicodeAttempts.forEach(id => {
+      unicodeAttempts.forEach((id) => {
         expect(() => validateAssetId(id)).toThrow();
       });
     });
@@ -350,7 +352,7 @@ describe("Path Traversal Protection", () => {
         "Asset/../../../ETC/HOSTS",
       ];
 
-      caseVariations.forEach(id => {
+      caseVariations.forEach((id) => {
         expect(() => validateAssetId(id)).toThrow();
       });
     });
@@ -363,7 +365,7 @@ describe("Path Traversal Protection", () => {
       ];
 
       // These should be valid since they don't contain illegal characters
-      validButSuspiciousIds.forEach(id => {
+      validButSuspiciousIds.forEach((id) => {
         expect(() => validateAssetId(id)).not.toThrow();
       });
     });

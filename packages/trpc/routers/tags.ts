@@ -399,10 +399,10 @@ export const tagsAppRouter = router({
             gt(bookmarkTags.id, cursor.id),
           ),
         );
-        whereCondition = and(
-          whereCondition,
-          cursorCondition!,
-        ) as unknown as typeof whereCondition;
+        const combined = and(whereCondition, cursorCondition);
+        if (combined) {
+          whereCondition = combined;
+        }
       }
 
       const tags = await ctx.db.query.bookmarkTags.findMany({

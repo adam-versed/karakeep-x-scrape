@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the database and external dependencies
 vi.mock("@karakeep/db", () => ({
@@ -41,7 +41,7 @@ describe("Batch Processing Improvements", () => {
       // Simulate adding bookmarks
       const addBookmark = (id: string) => {
         pendingBookmarks.set(id, { id, timestamp: Date.now() });
-        
+
         // Clear existing timer when batch size is reached
         if (pendingBookmarks.size >= batchSize) {
           if (batchTimer) {
@@ -77,16 +77,12 @@ describe("Batch Processing Improvements", () => {
         expect(flushInProgress).toBe(false);
         flushInProgress = true;
         flushCount++;
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
         flushInProgress = false;
       };
 
       // Simulate concurrent flush attempts
-      const promises = [
-        mockFlush(),
-        mockFlush(),
-        mockFlush(),
-      ];
+      const promises = [mockFlush(), mockFlush(), mockFlush()];
 
       // Should complete without throwing
       await expect(Promise.all(promises)).resolves.toBeDefined();
@@ -102,7 +98,7 @@ describe("Batch Processing Improvements", () => {
 
       const addItem = (item: string) => {
         pendingItems.push(item);
-        
+
         if (pendingItems.length >= batchSize) {
           // Process batch
           processedBatches.push([...pendingItems]);
@@ -143,21 +139,22 @@ describe("Batch Processing Improvements", () => {
   describe("Error Handling and Recovery", () => {
     it("should handle JSON parsing errors gracefully", async () => {
       const invalidJson = "{ invalid json }";
-      
+
       const parseWithErrorHandling = (jsonString: string) => {
         try {
           return { success: true, data: JSON.parse(jsonString) };
         } catch (error) {
-          return { 
-            success: false, 
-            error: error instanceof Error ? error.message : "JSON parsing failed",
-            data: null 
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "JSON parsing failed",
+            data: null,
           };
         }
       };
 
       const result = parseWithErrorHandling(invalidJson);
-      
+
       expect(result.success).toBe(false);
       expect(result.error).toContain("JSON");
       expect(result.data).toBeNull();
@@ -175,30 +172,35 @@ describe("Batch Processing Improvements", () => {
         return "success";
       };
 
-      const retryOperation = async (operation: () => Promise<string>, retries: number) => {
+      const retryOperation = async (
+        operation: () => Promise<string>,
+        retries: number,
+      ) => {
         for (let i = 0; i < retries; i++) {
           try {
             return await operation();
           } catch (error) {
             if (i === retries - 1) throw error;
             // Exponential backoff
-            await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 100));
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.pow(2, i) * 100),
+            );
           }
         }
         throw new Error("Max retries exceeded");
       };
 
       const result = await retryOperation(mockOperation, maxRetries);
-      
+
       expect(result).toBe("success");
       expect(attemptCount).toBe(3);
     });
 
     it("should handle partial batch failures", () => {
       const batchResults = {
-        "item1": "success",
-        "item2": "failed", 
-        "item3": "success"
+        item1: "success",
+        item2: "failed",
+        item3: "success",
       };
 
       const successfulItems = Object.entries(batchResults)
@@ -230,9 +232,9 @@ describe("Batch Processing Improvements", () => {
           const mockTx = {
             update: vi.fn().mockReturnValue({
               set: vi.fn().mockReturnValue({
-                where: vi.fn().mockResolvedValue(undefined)
-              })
-            })
+                where: vi.fn().mockResolvedValue(undefined),
+              }),
+            }),
           };
           return await callback(mockTx);
         } catch (error) {
@@ -244,18 +246,22 @@ describe("Batch Processing Improvements", () => {
       db.transaction = mockTransaction;
 
       // Test successful transaction
-      await expect(db.transaction(async (tx) => {
-        // Dummy transaction that doesn't actually do anything
-        return Promise.resolve(true);
-      })).resolves.toBeDefined();
+      await expect(
+        db.transaction(async (_tx) => {
+          // Dummy transaction that doesn't actually do anything
+          return Promise.resolve(true);
+        }),
+      ).resolves.toBeDefined();
 
       expect(transactionExecuted).toBe(true);
 
       // Test failed transaction
       transactionExecuted = false;
-      await expect(db.transaction(async () => {
-        throw new Error("Transaction failed");
-      })).rejects.toThrow("Transaction failed");
+      await expect(
+        db.transaction(async () => {
+          throw new Error("Transaction failed");
+        }),
+      ).rejects.toThrow("Transaction failed");
 
       expect(transactionExecuted).toBe(true);
       expect(transactionRolledBack).toBe(true);
@@ -270,12 +276,12 @@ describe("Batch Processing Improvements", () => {
       // Simulate high-frequency operations
       for (let i = 0; i < 100; i++) {
         operations.push(
-          new Promise(resolve => {
+          new Promise((resolve) => {
             setTimeout(() => {
               results.push(i);
               resolve();
             }, Math.random() * 10);
-          })
+          }),
         );
       }
 
@@ -288,18 +294,24 @@ describe("Batch Processing Improvements", () => {
     });
 
     it("should maintain memory efficiency", () => {
-      const largeDataSet = new Map<string, any>();
-      
+      const largeDataSet = new Map<
+        string,
+        { data: string; timestamp: number }
+      >();
+
       // Add large amount of data
       for (let i = 0; i < 1000; i++) {
-        largeDataSet.set(`key${i}`, { data: `value${i}`, timestamp: Date.now() });
+        largeDataSet.set(`key${i}`, {
+          data: `value${i}`,
+          timestamp: Date.now(),
+        });
       }
 
       expect(largeDataSet.size).toBe(1000);
 
       // Clear processed data
       largeDataSet.clear();
-      
+
       expect(largeDataSet.size).toBe(0);
     });
   });
@@ -327,7 +339,7 @@ describe("Batch Processing Improvements", () => {
 
       // Change batch size to smaller value
       batchSize = 3;
-      
+
       // Add one more item - should trigger batch
       pendingItems.push("item5");
       processBatch();
@@ -341,7 +353,7 @@ describe("Batch Processing Improvements", () => {
     it("should sanitize input data", () => {
       const sanitizeInput = (input: string) => {
         // Remove potentially dangerous characters
-        return input.replace(/[<>]/g, '').trim();
+        return input.replace(/[<>]/g, "").trim();
       };
 
       const maliciousInputs = [
@@ -364,8 +376,10 @@ describe("Batch Processing Improvements", () => {
         // Simulate permission check
         const allowedUsers = ["user1", "user2"];
         const allowedOperations = ["read", "write"];
-        
-        return allowedUsers.includes(userId) && allowedOperations.includes(operation);
+
+        return (
+          allowedUsers.includes(userId) && allowedOperations.includes(operation)
+        );
       };
 
       expect(validateUserPermission("user1", "read")).toBe(true);

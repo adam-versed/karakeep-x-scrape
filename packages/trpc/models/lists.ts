@@ -1,9 +1,10 @@
 import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, count, eq, or, desc, asc, gt, lt } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, lt, or } from "drizzle-orm";
 import invariant from "tiny-invariant";
 import { z } from "zod";
 
+import type { ZCursor } from "@karakeep/shared/types/pagination";
 import { SqliteError } from "@karakeep/db";
 import { bookmarkLists, bookmarksInLists } from "@karakeep/db/schema";
 import { triggerRuleEngineOnEvent } from "@karakeep/shared/queues";
@@ -14,7 +15,6 @@ import {
   zEditBookmarkListSchemaWithValidation,
   zNewBookmarkListSchema,
 } from "@karakeep/shared/types/lists";
-import type { ZCursor } from "@karakeep/shared/types/pagination";
 
 import { AuthedContext, Context } from "..";
 import { buildImpersonatingAuthedContext } from "../lib/impersonate";
@@ -168,8 +168,8 @@ export abstract class List implements PrivacyAware {
   }
 
   static async getAll(
-    ctx: AuthedContext, 
-    options?: { limit?: number; cursor?: ZCursor }
+    ctx: AuthedContext,
+    options?: { limit?: number; cursor?: ZCursor },
   ): Promise<{
     lists: (ManualList | SmartList)[];
     nextCursor: ZCursor | null;
@@ -184,10 +184,13 @@ export abstract class List implements PrivacyAware {
         lt(bookmarkLists.createdAt, cursor.createdAt),
         and(
           eq(bookmarkLists.createdAt, cursor.createdAt),
-          gt(bookmarkLists.id, cursor.id)
-        )
+          gt(bookmarkLists.id, cursor.id),
+        ),
       );
-      whereCondition = and(whereCondition, cursorCondition!) as any;
+      const combined = and(whereCondition, cursorCondition);
+      if (combined) {
+        whereCondition = combined;
+      }
     }
 
     const lists = await ctx.db.query.bookmarkLists.findMany({
@@ -202,12 +205,13 @@ export abstract class List implements PrivacyAware {
     const hasMore = lists.length > limit;
     const items = hasMore ? lists.slice(0, limit) : lists;
 
-    const nextCursor = hasMore && items.length > 0 
-      ? {
-          id: items[items.length - 1].id,
-          createdAt: items[items.length - 1].createdAt,
-        }
-      : null;
+    const nextCursor =
+      hasMore && items.length > 0
+        ? {
+            id: items[items.length - 1].id,
+            createdAt: items[items.length - 1].createdAt,
+          }
+        : null;
 
     return {
       lists: items.map((l) => this.fromData(ctx, l)),
