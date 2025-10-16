@@ -10,5 +10,14 @@ export default defineConfig({
     alias: {
       "@/*": "./*",
     },
+    bail: 1,
+    testTimeout: 30_000,
+    hookTimeout: 20_000,
+    teardownTimeout: 10_000,
+    passWithNoTests: true,
+    pool: "threads",
+    poolOptions: {
+      threads: { minThreads: 1, maxThreads: 1 },
+    },
   },
 });

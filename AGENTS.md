@@ -26,6 +26,21 @@
 - Worker integrations live in `apps/workers/tests`; stub external services and seed queues with fixtures.
 - Target ≥80% line coverage on touched files and run `pnpm test -- --coverage` before large PRs.
 
+### Execution Pattern (Vitest)
+- Always run in single-pass (non-watch) with fail-fast and strict timeouts:
+  - CLI: `vitest run --bail=1`
+  - Config (`vitest.config.ts`):
+    - `bail: 1`
+    - `testTimeout: 30_000`, `hookTimeout: 20_000`, `teardownTimeout: 10_000`
+    - `pool: "threads"` with `threads: { minThreads: 1, maxThreads: 1 }` for determinism
+    - `passWithNoTests: true` for packages without tests
+- Database-backed tests must create an isolated DB per test file and apply migrations up-front; prefer a temp file–backed SQLite DB over `:memory:` to ensure shared schema across sessions.
+- External integrations (network, browsers, third-party APIs) must be mocked; tests should never reach the network. Slow/network-dependent tests should live in a separate suite and be opt-in.
+
+## Reminders
+- Remove temporary DB seeding/debug logs added for test stability once the suites are consistently green:
+  - `packages/trpc/testUtils.ts` – look for `[trpc-tests]` console markers (DB ready, table list, user seeding). Delete after a few successful CI runs to reduce noise.
+
 ## Commit & Pull Request Guidelines
 - Use imperative, scope-prefixed commits (`feat: add crawler retry guard`).
 - Before pushing, rerun `pnpm typecheck`, `pnpm lint`, `pnpm format --check`, `pnpm test`, and `./run-security-tests.sh` when applicable.

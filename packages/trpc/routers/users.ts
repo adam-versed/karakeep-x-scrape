@@ -77,13 +77,15 @@ export async function createUserRaw(
 
       return result;
     } catch (e) {
-      if (e instanceof SqliteError) {
-        if (e.code == "SQLITE_CONSTRAINT_UNIQUE") {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Email is already taken",
-          });
-        }
+      const msg = (e as Error).message ?? "";
+      if (
+        (e instanceof SqliteError && e.code == "SQLITE_CONSTRAINT_UNIQUE") ||
+        msg.toLowerCase().includes("unique")
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Email is already taken",
+        });
       }
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",

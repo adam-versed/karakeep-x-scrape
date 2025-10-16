@@ -13,9 +13,10 @@ This phased plan tracks the remaining hardening work after Phase 1 and Phase 2 l
 
 ## Phase 4 – Reliability & Performance Enhancements
 
-- [ ] Consolidate list/tag statistics queries in `packages/trpc/routers/lists.ts` to avoid per-list size roundtrips; prefer an aggregated SQL query.
-- [ ] Refactor `Bookmark.loadMulti` in `packages/trpc/models/bookmarks.ts` to reduce multi-join fan-out and prepare for larger datasets.
-- [ ] Add download size/time guards and telemetry around crawler asset fetches (`downloadAndStoreFile`), surfacing repeated failures for follow-up.
+- [x] Consolidate list/tag statistics queries in `packages/trpc/routers/lists.ts` to avoid per-list size roundtrips; prefer an aggregated SQL query.
+- [x] Refactor `Bookmark.loadMulti` in `packages/trpc/models/bookmarks.ts` to reduce multi-join fan-out and prepare for larger datasets.
+- [x] Add download size/time guards and telemetry around crawler asset fetches (`downloadAndStoreFile`), surfacing repeated failures for follow-up.
+- [x] Test harness reliability: enforce Vitest single-pass with bail and strict timeouts; deterministic per-file SQLite temp DB with migrations to avoid hangs and schema races.
 
 ## Phase 5 – Public-Facing Readiness
 

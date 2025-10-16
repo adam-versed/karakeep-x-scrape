@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import * as path from "node:path";
 import * as os from "os";
+import type { Response } from "node-fetch";
 import { PlaywrightBlocker } from "@ghostery/adblocker-playwright";
 import { Readability } from "@mozilla/readability";
 import DOMPurify from "dompurify";
@@ -20,7 +21,6 @@ import metascraperTitle from "metascraper-title";
 import metascraperTwitter from "metascraper-twitter";
 import metascraperUrl from "metascraper-url";
 import fetch from "node-fetch";
-import type { Response } from "node-fetch";
 import { chromium } from "playwright-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { withTimeout } from "utils";
@@ -60,8 +60,8 @@ import {
 } from "@karakeep/shared/queues";
 import { ApifyService } from "@karakeep/shared/services/apifyService";
 import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
-import { validateUrlForSSRF } from "@karakeep/shared/validation";
 import { isXComUrl } from "@karakeep/shared/utils/xcom";
+import { validateUrlForSSRF } from "@karakeep/shared/validation";
 
 import metascraperReddit from "../metascraper-plugins/metascraper-reddit";
 import metascraperX from "../metascraper-plugins/metascraper-x";
@@ -88,6 +88,8 @@ const metascraperParser = metascraper([
 let globalBlocker: PlaywrightBlocker | undefined;
 
 const MAX_HTML_RESPONSE_BYTES = 5 * 1024 * 1024; // 5 MiB cap for HTML payloads
+const DOWNLOAD_WARN_THRESHOLD_MS = 10_000;
+const assetDownloadFailureCounts = new Map<string, number>();
 
 async function ensureContentLengthWithinLimit(
   response: Response,
@@ -120,7 +122,9 @@ async function readResponseBodyWithLimit(
 
   const chunks: Buffer[] = [];
   let totalBytes = 0;
-  for await (const chunk of response.body as AsyncIterable<Buffer | Uint8Array | string>) {
+  for await (const chunk of response.body as AsyncIterable<
+    Buffer | Uint8Array | string
+  >) {
     const buffer = Buffer.isBuffer(chunk)
       ? chunk
       : typeof chunk === "string"
@@ -448,7 +452,10 @@ async function downloadAndStoreFile(
 ) {
   try {
     const safeUrl = await validateUrlForSSRF(url);
-    logger.info(`[Crawler][${jobId}] Downloading ${fileType} from "${safeUrl}"`);
+    logger.info(
+      `[Crawler][${jobId}] Downloading ${fileType} from "${safeUrl}"`,
+    );
+    const downloadStart = Date.now();
     const response = await fetch(safeUrl, {
       signal: abortSignal,
     });
@@ -477,15 +484,36 @@ async function downloadAndStoreFile(
       asset: buffer,
     });
 
+    const durationMs = Date.now() - downloadStart;
+    const durationMessage = `${durationMs}ms`;
+    if (durationMs > DOWNLOAD_WARN_THRESHOLD_MS) {
+      logger.warn(
+        `[Crawler][${jobId}] ${fileType} download took ${durationMessage} for ${safeUrl}`,
+      );
+    }
+
     logger.info(
-      `[Crawler][${jobId}] Downloaded ${fileType} (${buffer.byteLength} bytes) as assetId: ${assetId}`,
+      `[Crawler][${jobId}] Downloaded ${fileType} (${buffer.byteLength} bytes) as assetId: ${assetId} in ${durationMessage}`,
     );
+
+    assetDownloadFailureCounts.delete(url);
 
     return { assetId, userId, contentType, size: buffer.byteLength };
   } catch (e) {
     logger.error(
       `[Crawler][${jobId}] Failed to download and store ${fileType}: ${e}`,
     );
+    try {
+      const failures = (assetDownloadFailureCounts.get(url) ?? 0) + 1;
+      assetDownloadFailureCounts.set(url, failures);
+      if (failures >= 3) {
+        logger.warn(
+          `[Crawler][${jobId}] ${fileType} download for ${url} has failed ${failures} times; investigate recurring issue`,
+        );
+      }
+    } catch {
+      // Telemetry is best-effort; ignore secondary errors
+    }
     return null;
   }
 }

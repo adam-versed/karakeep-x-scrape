@@ -1,18 +1,28 @@
 import { experimental_trpcMiddleware, TRPCError } from "@trpc/server";
-import { and, eq, inArray, notExists, desc, asc, gt, lt, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  lt,
+  notExists,
+  or,
+} from "drizzle-orm";
 import { z } from "zod";
 
 import type { ZAttachedByEnum } from "@karakeep/shared/types/tags";
 import { SqliteError } from "@karakeep/db";
 import { bookmarkTags, tagsOnBookmarks } from "@karakeep/db/schema";
 import { triggerSearchReindex } from "@karakeep/shared/queues";
+import { zCursorV2 } from "@karakeep/shared/types/pagination";
 import {
   zCreateTagRequestSchema,
   zGetTagResponseSchema,
   zTagBasicSchema,
   zUpdateTagRequestSchema,
 } from "@karakeep/shared/types/tags";
-import { zCursorV2 } from "@karakeep/shared/types/pagination";
 
 import type { Context } from "../index";
 import { authedProcedure, router } from "../index";
@@ -73,10 +83,14 @@ export const tagsAppRouter = router({
           name: newTag.name,
         };
       } catch (e) {
-        if (e instanceof SqliteError && e.code === "SQLITE_CONSTRAINT_UNIQUE") {
+        const msg = (e as Error).message ?? "";
+        if (
+          (e instanceof SqliteError && e.code === "SQLITE_CONSTRAINT_UNIQUE") ||
+          msg.toLowerCase().includes("unique")
+        ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "Tag name already exists for this user.",
+            message: "Tag name already exists",
           });
         }
         throw e;
@@ -235,14 +249,15 @@ export const tagsAppRouter = router({
           name: res[0].name,
         };
       } catch (e) {
-        if (e instanceof SqliteError) {
-          if (e.code == "SQLITE_CONSTRAINT_UNIQUE") {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message:
-                "Tag name already exists. You might want to consider a merge instead.",
-            });
-          }
+        const msg = (e as Error).message ?? "";
+        if (
+          (e instanceof SqliteError && e.code === "SQLITE_CONSTRAINT_UNIQUE") ||
+          msg.toLowerCase().includes("unique")
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Tag name already exists",
+          });
         }
         throw e;
       }
@@ -357,10 +372,12 @@ export const tagsAppRouter = router({
     }),
   list: authedProcedure
     .input(
-      z.object({
-        limit: z.number().min(1).max(100).default(20),
-        cursor: zCursorV2.optional(),
-      }).optional()
+      z
+        .object({
+          limit: z.number().min(1).max(100).default(20),
+          cursor: zCursorV2.optional(),
+        })
+        .optional(),
     )
     .output(
       z.object({
@@ -379,10 +396,13 @@ export const tagsAppRouter = router({
           lt(bookmarkTags.createdAt, cursor.createdAt),
           and(
             eq(bookmarkTags.createdAt, cursor.createdAt),
-            gt(bookmarkTags.id, cursor.id)
-          )
+            gt(bookmarkTags.id, cursor.id),
+          ),
         );
-        whereCondition = and(whereCondition, cursorCondition!) as any;
+        whereCondition = and(
+          whereCondition,
+          cursorCondition!,
+        ) as unknown as typeof whereCondition;
       }
 
       const tags = await ctx.db.query.bookmarkTags.findMany({
@@ -401,12 +421,13 @@ export const tagsAppRouter = router({
       const hasMore = tags.length > limit;
       const items = hasMore ? tags.slice(0, limit) : tags;
 
-      const nextCursor = hasMore && items.length > 0 
-        ? {
-            id: items[items.length - 1].id,
-            createdAt: items[items.length - 1].createdAt,
-          }
-        : null;
+      const nextCursor =
+        hasMore && items.length > 0
+          ? {
+              id: items[items.length - 1].id,
+              createdAt: items[items.length - 1].createdAt,
+            }
+          : null;
 
       const resp = items.map(({ tagsOnBookmarks, ...rest }) => ({
         ...rest,
@@ -424,7 +445,7 @@ export const tagsAppRouter = router({
         ),
       }));
 
-      return { 
+      return {
         tags: resp,
         nextCursor,
       };
