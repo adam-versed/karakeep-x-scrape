@@ -6,7 +6,6 @@ import {
   eq,
   exists,
   gt,
-  gte,
   inArray,
   lt,
   lte,
@@ -153,7 +152,7 @@ export class Bookmark implements PrivacyAware {
                     gt(bookmarks.createdAt, input.cursor.createdAt),
                     and(
                       eq(bookmarks.createdAt, input.cursor.createdAt),
-                      gte(bookmarks.id, input.cursor.id),
+                      lt(bookmarks.id, input.cursor.id),
                     ),
                   )
                 : or(
